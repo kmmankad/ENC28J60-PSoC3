@@ -1,0 +1,20 @@
+No.     Time        Source                Destination           Protocol Length Info
+      1 0.000000    Broadcast             Broadcast             ARP      60     Who has 192.168.0.1?  Tell 192.168.0.153
+
+Frame 1: 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00), Dst: Broadcast (ff:ff:ff:ff:ff:ff)
+    Destination: Broadcast (ff:ff:ff:ff:ff:ff)
+    Source: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00)
+    Type: ARP (0x0806)
+    Trailer: 000000000000000000000000000000000000
+Address Resolution Protocol (request)
+
+No.     Time        Source                Destination           Protocol Length Info
+      2 0.000032    Intel-Hf_14:c8:00     Intel-Hf_14:c8:00     ARP      42     192.168.0.1 is at dc:0e:a1:81:b4:ab
+
+Frame 2: 42 bytes on wire (336 bits), 42 bytes captured (336 bits)
+Ethernet II, Src: CompalIn_81:b4:ab (dc:0e:a1:81:b4:ab), Dst: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00)
+    Destination: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00)
+    Source: CompalIn_81:b4:ab (dc:0e:a1:81:b4:ab)
+    Type: ARP (0x0806)
+Address Resolution Protocol (reply)
