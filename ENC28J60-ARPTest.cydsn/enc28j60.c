@@ -132,22 +132,21 @@ void initMAC(unsigned char deviceMAC[] ){
 }
 
 unsigned int MACWrite(unsigned char* packet, unsigned int len){
+
     unsigned char  bytControl=0x00;
   
     /*Configure TX Buffer Pointers*/
     BankSel(0);// select bank 0
-	/*Set write buffer to point to start of Tx Buffer*/
+    
+    // write ptr to start of Tx packet
+    WriteCtrReg(ETXSTL,(unsigned char)( TXSTART & 0x00ff));        
+    WriteCtrReg(ETXSTH,(unsigned char)((TXSTART & 0xff00)>>8));
+    
+	/*Set write buffer pointer to point to start of Tx Buffer*/
 	WriteCtrReg(EWRPTL,(unsigned char)( TXSTART & 0x00ff));        
 	WriteCtrReg(EWRPTH,(unsigned char)((TXSTART & 0xff00)>>8));
 	
-	/*Tell MAC when the end of the packet is*/
-	WriteCtrReg(ETXNDL, (unsigned char)( (len+TXSTART) & 0x00ff));       
-	WriteCtrReg(ETXNDH, (unsigned char)(((len+TXSTART) & 0xff00)>>8));
     
-    /*Set pointers to indicate end of packet.*/
-    WriteCtrReg(ETXNDL, (unsigned char)( len & 0x00ff));       
-    WriteCtrReg(ETXNDH, (unsigned char)((len & 0xff00)>>8));
-
     /*Write the Per Packet Control Byte
     See FIGURE 7-1: FORMAT FOR PER PACKET CONTROL BYTES
     on Page 41 of the datasheet */
@@ -156,6 +155,10 @@ unsigned int MACWrite(unsigned char* packet, unsigned int len){
     /*Write the packet into the ENC's buffer*/
 	WriteMacBuffer(packet, len);  
     
+	/*Tell MAC when the end of the packet is*/
+	WriteCtrReg(ETXNDL, (unsigned char)( (len+TXSTART+1) & 0x00ff));       
+	WriteCtrReg(ETXNDH, (unsigned char)(((len+TXSTART+1) & 0xff00)>>8));
+
     /*We would like to enable Interrupts on Packet TX complete.*/
     ClrBitField(EIR,EIR_TXIF);
     SetBitField(EIE, EIE_TXIE |EIE_INTIE);
