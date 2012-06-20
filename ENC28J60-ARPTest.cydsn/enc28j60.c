@@ -234,7 +234,7 @@ unsigned int MACRead(unsigned char* packet, unsigned int maxLen){
     pckLen=CYSWAP_ENDIAN16(ptrRxStatus.bits.ByteCount) - 4; //We take away 4 as that is the CRC
     
 	if( pckLen > (maxLen-1) ){
-	pckLen = maxLen-1;
+	pckLen = maxLen;
 	}
 	
     /*Read the packet only if it was RX'd Okay.
