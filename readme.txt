@@ -6,6 +6,10 @@ This project aims to create an Internet connected PSoC3 based device.
 Current status: 
 -ENC28J60 Hardware Test Code Done.
 -ARP Request/Reply Code Done.
+-UDP done.
+-WebServer done.
+-DNS Done.
+-Webclient under test.
 
 
 This code has been tested with:
