@@ -1,0 +1,259 @@
+C51 COMPILER V9.03   MAIN                                                                  07/02/2012 20:08:08 PAGE 1   
+
+
+C51 COMPILER V9.03, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\DP8051_Keil_903\Debug\main.obj
+COMPILER INVOKED BY: C:\Program Files (x86)\Cypress\PSoC Creator\2.1\PSoC Creator\import\keil\pk51\9.03\C51\BIN\c51.exe 
+                    -.\main.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\main.lst) CD DB NOIP OT(0,SIZE) INCDIR(Generated_Source
+                    -\PSoC3) OJ(.\DP8051_Keil_903\Debug\main.obj)
+
+line level    source
+
+   1          /*
+   2           Network Stack for PSoC3-ENC28J60 hardware
+   3           -----------------------------------------
+   4           Title  : Basic Webserver Example
+   5           Author : Kartik Mankad
+   6           Date : 30-06-12
+   7           This code is licensed as CC-BY-SA 3.0
+   8           Description : This runs a webserver on the device's IP,on port 80
+   9                         and will display a simple(but true :P) 'PSoC Rocks!' 
+  10                         on a blank webpage when accessed.
+  11          */
+  12          
+  13          #include <device.h>
+  14          #include "IPstackMain.h"
+  15          
+  16          /*MAC address to be assigned to the ENC28J60*/
+  17          const unsigned char myMAC[6] = {0x00,0xa0,0xc9,0x14,0xc8,0x00};
+  18          
+  19          /*IP address to be assigned to the ENC28J60*/
+  20          const unsigned char myIP[4] = {192,168,1,153};
+  21          
+  22          
+  23          void main( void ){
+  24   1          LCD_Start();
+  25   1          /*Initialize the IP Stack*/
+  26   1          IPstack_Start(myMAC,myIP);
+  27   1          
+  28   1          LCD_PrintString("Router MAC");
+  29   1          LCD_Position(1,0);
+  30   1          LCD_PrintInt8(routerMAC[0]);
+  31   1          LCD_PutChar(':');
+  32   1          LCD_PrintInt8(routerMAC[1]);
+  33   1          LCD_PutChar(':');
+  34   1          LCD_PrintInt8(routerMAC[2]);
+  35   1          LCD_PutChar(':');
+  36   1          LCD_PrintInt8(routerMAC[3]);
+  37   1          LCD_PutChar(':');
+  38   1          LCD_PrintInt8(routerMAC[4]);
+  39   1          LCD_PutChar(':');
+  40   1          LCD_PrintInt8(routerMAC[5]);
+  41   1          
+  42   1          for(;;){
+  43   2          /*DNS lookup*/
+  44   2              if(DNSLookup("google.com")==TRUE){
+  45   3                  CyDelay(1000);
+  46   3                  LCD_ClearDisplay();
+  47   3                  LCD_PrintString("Google.com");
+  48   3                  LCD_Position(1,0);
+  49   3                  LCD_PrintNumber(serverIP[0]);
+  50   3                  LCD_PutChar('.');
+  51   3                  LCD_PrintNumber(serverIP[1]);
+  52   3                  LCD_PutChar('.');
+  53   3                  LCD_PrintNumber(serverIP[2]);
+C51 COMPILER V9.03   MAIN                                                                  07/02/2012 20:08:08 PAGE 2   
+
+  54   3                  LCD_PutChar('.');
+  55   3                  LCD_PrintNumber(serverIP[3]);
+  56   3                  for(;;){
+  57   4                  WebClient_Send("GET / HTTP/1.1\r\nHost: google.com\r\n\r\n");
+  58   4                  IPstackIdle();
+  59   4                  }
+  60   3              }
+  61   2          }
+  62   1      }
+C51 COMPILER V9.03   MAIN                                                                  07/02/2012 20:08:08 PAGE 3   
+
+ASSEMBLY LISTING OF GENERATED OBJECT CODE
+
+
+             ; FUNCTION main (BEGIN)
+                                           ; SOURCE LINE # 23
+                                           ; SOURCE LINE # 24
+0000 120000      E     LCALL   LCD_Start
+                                           ; SOURCE LINE # 26
+0003 7B01              MOV     R3,#01H
+0005 7A00        R     MOV     R2,#HIGH myMAC
+0007 7900        R     MOV     R1,#LOW myMAC
+0009 C003              PUSH    AR3
+000B C002              PUSH    AR2
+000D C001              PUSH    AR1
+000F 7B01              MOV     R3,#01H
+0011 7A00        R     MOV     R2,#HIGH myIP
+0013 7900        R     MOV     R1,#LOW myIP
+0015 900000      E     MOV     DPTR,#?_IPstack_Start?BYTE+03H
+0018 120000      E     LCALL   ?C?PSTXDATA
+001B D001              POP     AR1
+001D D002              POP     AR2
+001F D003              POP     AR3
+0021 120000      E     LCALL   _IPstack_Start
+                                           ; SOURCE LINE # 28
+0024 7BFF              MOV     R3,#0FFH
+0026 7A00        R     MOV     R2,#HIGH ?SC_0
+0028 7900        R     MOV     R1,#LOW ?SC_0
+002A 120000      E     LCALL   _LCD_PrintString
+                                           ; SOURCE LINE # 29
+002D 7D00              MOV     R5,#00H
+002F 7F01              MOV     R7,#01H
+0031 120000      E     LCALL   _LCD_Position
+                                           ; SOURCE LINE # 30
+0034 900000      E     MOV     DPTR,#routerMAC
+0037 E0                MOVX    A,@DPTR
+0038 FF                MOV     R7,A
+0039 120000      E     LCALL   _LCD_PrintHexUint8
+                                           ; SOURCE LINE # 31
+003C 7F3A              MOV     R7,#03AH
+003E 120000      E     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 32
+0041 900000      E     MOV     DPTR,#routerMAC+01H
+0044 E0                MOVX    A,@DPTR
+0045 FF                MOV     R7,A
+0046 120000      E     LCALL   _LCD_PrintHexUint8
+                                           ; SOURCE LINE # 33
+0049 7F3A              MOV     R7,#03AH
+004B 120000      E     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 34
+004E 900000      E     MOV     DPTR,#routerMAC+02H
+0051 E0                MOVX    A,@DPTR
+0052 FF                MOV     R7,A
+0053 120000      E     LCALL   _LCD_PrintHexUint8
+                                           ; SOURCE LINE # 35
+0056 7F3A              MOV     R7,#03AH
+0058 120000      E     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 36
+005B 900000      E     MOV     DPTR,#routerMAC+03H
+005E E0                MOVX    A,@DPTR
+005F FF                MOV     R7,A
+0060 120000      E     LCALL   _LCD_PrintHexUint8
+                                           ; SOURCE LINE # 37
+C51 COMPILER V9.03   MAIN                                                                  07/02/2012 20:08:08 PAGE 4   
+
+0063 7F3A              MOV     R7,#03AH
+0065 120000      E     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 38
+0068 900000      E     MOV     DPTR,#routerMAC+04H
+006B E0                MOVX    A,@DPTR
+006C FF                MOV     R7,A
+006D 120000      E     LCALL   _LCD_PrintHexUint8
+                                           ; SOURCE LINE # 39
+0070 7F3A              MOV     R7,#03AH
+0072 120000      E     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 40
+0075 900000      E     MOV     DPTR,#routerMAC+05H
+0078 E0                MOVX    A,@DPTR
+0079 FF                MOV     R7,A
+007A 120000      E     LCALL   _LCD_PrintHexUint8
+                                           ; SOURCE LINE # 42
+007D         ?C0001:
+                                           ; SOURCE LINE # 44
+007D 7BFF              MOV     R3,#0FFH
+007F 7A00        R     MOV     R2,#HIGH ?SC_11
+0081 7900        R     MOV     R1,#LOW ?SC_11
+0083 120000      E     LCALL   _DNSLookup
+0086 EF                MOV     A,R7
+0087 4E                ORL     A,R6
+0088 70F3              JNZ     ?C0001
+                                           ; SOURCE LINE # 45
+008A 7FE8              MOV     R7,#0E8H
+008C 7E03              MOV     R6,#03H
+008E 7D00              MOV     R5,#00H
+0090 7C00              MOV     R4,#00H
+0092 120000      E     LCALL   _?CyDelay
+                                           ; SOURCE LINE # 46
+0095 7F01              MOV     R7,#01H
+0097 120000      E     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 47
+009A 7BFF              MOV     R3,#0FFH
+009C 7A00        R     MOV     R2,#HIGH ?SC_22
+009E 7900        R     MOV     R1,#LOW ?SC_22
+00A0 120000      E     LCALL   _LCD_PrintString
+                                           ; SOURCE LINE # 48
+00A3 7D00              MOV     R5,#00H
+00A5 7F01              MOV     R7,#01H
+00A7 120000      E     LCALL   _LCD_Position
+                                           ; SOURCE LINE # 49
+00AA 900000      E     MOV     DPTR,#serverIP
+00AD E0                MOVX    A,@DPTR
+00AE FF                MOV     R7,A
+00AF 7E00              MOV     R6,#00H
+00B1 120000      E     LCALL   _LCD_PrintDecUint16
+                                           ; SOURCE LINE # 50
+00B4 7F2E              MOV     R7,#02EH
+00B6 120000      E     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 51
+00B9 900000      E     MOV     DPTR,#serverIP+01H
+00BC E0                MOVX    A,@DPTR
+00BD FF                MOV     R7,A
+00BE 7E00              MOV     R6,#00H
+00C0 120000      E     LCALL   _LCD_PrintDecUint16
+                                           ; SOURCE LINE # 52
+00C3 7F2E              MOV     R7,#02EH
+00C5 120000      E     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 53
+C51 COMPILER V9.03   MAIN                                                                  07/02/2012 20:08:08 PAGE 5   
+
+00C8 900000      E     MOV     DPTR,#serverIP+02H
+00CB E0                MOVX    A,@DPTR
+00CC FF                MOV     R7,A
+00CD 7E00              MOV     R6,#00H
+00CF 120000      E     LCALL   _LCD_PrintDecUint16
+                                           ; SOURCE LINE # 54
+00D2 7F2E              MOV     R7,#02EH
+00D4 120000      E     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 55
+00D7 900000      E     MOV     DPTR,#serverIP+03H
+00DA E0                MOVX    A,@DPTR
+00DB FF                MOV     R7,A
+00DC 7E00              MOV     R6,#00H
+00DE 120000      E     LCALL   _LCD_PrintDecUint16
+                                           ; SOURCE LINE # 56
+00E1         ?C0004:
+                                           ; SOURCE LINE # 57
+00E1 7BFF              MOV     R3,#0FFH
+00E3 7A00        R     MOV     R2,#HIGH ?SC_33
+00E5 7900        R     MOV     R1,#LOW ?SC_33
+00E7 120000      E     LCALL   _WebClient_Send
+                                           ; SOURCE LINE # 58
+00EA 120000      E     LCALL   IPstackIdle
+                                           ; SOURCE LINE # 59
+00ED 80F2              SJMP    ?C0004
+00EF         ?C0005:
+                                           ; SOURCE LINE # 60
+00EF         ?C0003:
+                                           ; SOURCE LINE # 61
+00EF 808C              SJMP    ?C0001
+00F1         ?C0002:
+                                           ; SOURCE LINE # 62
+00F1         ?C0006:
+00F1 22                RET     
+             ; FUNCTION main (END)
+
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    242    ----
+   CONSTANT SIZE    =     70    ----
+   XDATA SIZE       =     10    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,2973 @@
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 1   
+
+
+C51 COMPILER V9.03, COMPILATION OF MODULE IPSTACK
+OBJECT MODULE PLACED IN .\DP8051_Keil_903\Debug\IPStack.obj
+COMPILER INVOKED BY: C:\Program Files (x86)\Cypress\PSoC Creator\2.1\PSoC Creator\import\keil\pk51\9.03\C51\BIN\c51.exe 
+                    -.\IPStack.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\IPStack.lst) CD DB NOIP OT(0,SIZE) INCDIR(Generated_
+                    -Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\IPStack.obj)
+
+line level    source
+
+   1          /*
+   2           Network Stack for PSoC3-ENC28J60 hardware
+   3           -----------------------------------------
+   4           Title  : Common IP Stack functions
+   5           Author : Kartik Mankad
+   6           Date : 30-06-12
+   7           This code is licensed as CC-BY-SA 3.0
+   8           Description : This file contains the common functions required
+   9                         by the remainder of the IP stack.
+  10          */
+  11          
+  12          #include "IPStackMain.h"
+  13          #include <string.h>
+  14          #include <device.h>
+  15          
+  16          /*******************************************************************************
+  17          * Function Name: add32
+  18          ********************************************************************************
+  19          * Summary:
+  20          *   Adds a 16 bit operand to a 32bit one.Used here to update 
+  21          *   Sequence and Ack numbers during an HTTP transaction.
+  22          *
+  23          * Parameters:
+  24          *   op32 - pointer to the 32bit operand.
+  25          *   op16 - the 16bit operand.
+  26          *             
+  27          * Returns:
+  28          *   none.
+  29          *******************************************************************************/
+  30          void add32(unsigned char *op32, unsigned int op16){
+  31   1          op32[3] += (op16 & 0xff);
+  32   1          op32[2] += (op16 >> 8);
+  33   1        
+  34   1          if(op32[2] < (op16 >> 8)) {
+  35   2              ++op32[1];
+  36   2              if(op32[1] == 0) {
+  37   3                  ++op32[0];
+  38   3              }
+  39   2          }
+  40   1        
+  41   1          if(op32[3] < (op16 & 0xff)) {
+  42   2              ++op32[2];
+  43   2              if(op32[2] == 0) {
+  44   3                  ++op32[1];
+  45   3                  if(op32[1] == 0) {
+  46   4                      ++op32[0];
+  47   4                  }
+  48   3              }
+  49   2          }
+  50   1      }
+  51          
+  52          /*******************************************************************************
+  53          * Function Name: checksum
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 2   
+
+  54          ********************************************************************************
+  55          * Summary:
+  56          *   Computes the checksum for UDP,TCP or IP as specified by the type parameter.
+  57          *   Sequence and Ack numbers during an HTTP transaction.
+  58          *   **Clear the checksum fields in the appropriate packets,before calculating.
+  59          *
+  60          * Parameters:
+  61          *   buf - pointer to the data structure over which the checksum must be calc'd.
+  62          *   For ICMP or IP Checksums(type 0),pointer should point to the start of 
+  63          *   the IP header.
+  64          *   For TCP(type 2)/UDP(type 1),pointer should point to 
+  65          *   the sourceIP field in the IPheader.
+  66          *
+  67          *   len - length of the data structure over which checksum must be calc'd.
+  68          *   For ICMP or IP Checksums(type 0),it should be size of ONLY IP header part.
+  69          *   That can be computed by sizeof(IPhdr) - sizeof(EtherNetII).
+  70          *   For TCP(type 2)/UDP(type 1),it should be UDP or TCP header plus 8,because
+  71          *   the source IP and destination IP(which are part of the checksum's pseudoheader)
+  72          *   are 4bytes long each.
+  73          *   
+  74          *   type - The Type of checksum we require,
+  75          *           0 for IP/ICMP checksums
+  76          *           1 for UDP checksums
+  77          *           2 for TCP checksums
+  78          *            
+  79          * Returns:
+  80          *   16 bit checksum.
+  81          *   This function is taken from the TUXGraphics network stack,due to its elegance.
+  82          *******************************************************************************/
+  83          uint16 checksum(unsigned char *buf, unsigned int len,unsigned char type){
+  84   1      
+  85   1          uint32 sum = 0;
+  86   1          /*Process that pseudoheader nonsense for UDP*/
+  87   1          if(type==1){
+  88   2              sum+=UDPPROTOCOL;//Add the protocol field of the pseudoheader to sum.
+  89   2                      //'len' should be the length of the UDP header+data.
+  90   2                      /*Since UDP length field is also part of the pseudoheader,
+  91   2                      that needs to be added too.We compute that UDP length 
+  92   2                      by subtracting 8 from the 'len'(passed to this function),since
+  93   2                      we include 8bytes extra when we called this function,due to the
+  94   2                      sourceIP and destIP,which are to be part of this pseudoheader,
+  95   2                      and hence checksum calculation.*/
+  96   2              sum+=(len-8);//Add the UDP len.
+  97   2          }
+  98   1          
+  99   1          if(type==2){//Add the protocol field of the pseudoheader to sum.
+ 100   2              sum+=TCPPROTOCOL; 
+ 101   2                      //'len' should be the length of the UDP header+data.
+ 102   2                      /*Since TCP length field is also part of the pseudoheader,
+ 103   2                      that needs to be added too.We compute that TCP length 
+ 104   2                      by subtracting 8 from the 'len'(passed to this function),since
+ 105   2                      we include 8bytes extra when we called this function,due to the
+ 106   2                      sourceIP and destIP,which are to be part of this pseudoheader,
+ 107   2                      and hence checksum calculation.*/
+ 108   2              sum+=len-8;//Add the TCP len
+ 109   2          }
+ 110   1              
+ 111   1          /*Sum up 16bit words*/
+ 112   1          while(len >1){
+ 113   2              sum += 0xFFFF & (((uint32)*buf<<8)|*(buf+1));
+ 114   2              buf+=2;
+ 115   2              len-=2;
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 3   
+
+ 116   2          }
+ 117   1              
+ 118   1          /*if there is a byte left(number of bytes was odd) then add it,but zero padded.*/
+ 119   1          if (len){
+ 120   2              sum += ((uint32)(0xFF & *buf))<<8;
+ 121   2          }
+ 122   1              
+ 123   1          /*Now calculate the sum over the bytes in the sum
+ 124   1          until the result is only 16bit long*/
+ 125   1          while (sum>>16){
+ 126   2              sum = (sum & 0xFFFF)+(sum >> 16);
+ 127   2          }
+ 128   1          
+ 129   1          /*build 1's complement*/
+ 130   1          return((uint16)(sum ^ 0xFFFF));
+ 131   1      }
+ 132          
+ 133          /*******************************************************************************
+ 134          * Function Name: SetupBasicIPPacket
+ 135          ********************************************************************************
+ 136          * Summary:
+ 137          *   Swaps the Source,Destination MAC and IP Addresses,
+ 138          *   Populates the various other fields of an IP header,
+ 139          *   zero-ing the checksum field.It does not set length.
+ 140          *
+ 141          * Parameters:
+ 142          *   packet - pointer to the packet data structure to be populated.
+ 143          *   proto - value of the protocol field in the IP header(TCP/ICMP/UDP/IP)
+ 144          *   destIP - IP address to be filled in the destination IP field.
+ 145          *             
+ 146          * Returns:
+ 147          *   none.
+ 148          *******************************************************************************/
+ 149          void SetupBasicIPPacket( unsigned char* packet, unsigned char proto, unsigned char* destIP){
+ 150   1          /*Structure the data buffer(packet) as an IP header*/
+ 151   1          IPhdr* ip = (IPhdr*)packet;
+ 152   1          
+ 153   1          /*ETH type is an IP packet*/
+ 154   1          ip->eth.type = (IPPACKET);
+ 155   1          
+ 156   1          /*Swap the MAC Addresses in the ETH header*/
+ 157   1          memcpy( ip->eth.DestAddrs, routerMAC, sizeof(routerMAC) );
+ 158   1          memcpy( ip->eth.SrcAddrs, deviceMAC, sizeof(deviceMAC) );
+ 159   1          
+ 160   1          /*Swap the IP Addresses in the IP header*/
+ 161   1          memcpy( ip->source , deviceIP, sizeof(deviceIP) );
+ 162   1          memcpy( ip->dest, destIP, sizeof(deviceIP) );
+ 163   1          
+ 164   1          /*Fill up the rest of the fields*/
+ 165   1          ip->version = 0x4;
+ 166   1          ip->hdrlen = 0x5;
+ 167   1          ip->diffsf = 0;
+ 168   1          ip->ident = 2;/*Random*/
+ 169   1          ip->flags = 0x2;/*Dont Fragment*/
+ 170   1          ip->fragmentOffset1 = 0x0;
+ 171   1          ip->fragmentOffset2 = 0x0;
+ 172   1          ip->ttl = 128;
+ 173   1          
+ 174   1          /*Set the type of IP Protocol*/
+ 175   1          ip->protocol = proto;
+ 176   1          
+ 177   1          /*Zero out the checksum*/
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 4   
+
+ 178   1          ip->chksum = 0x00;
+ 179   1      }
+ 180          
+ 181          /*******************************************************************************
+ 182          * Function Name: GetPacket
+ 183          ********************************************************************************
+ 184          * Summary:
+ 185          *   This function checks for packets recd,and has been designed to
+ 186          *   automatically reply to Ping Requests and ARP Requests.
+ 187          *   If you wish to process Ping Replies,edit the lines marked for the same.
+ 188          *
+ 189          *   It returns '1' if it finds a packet of type proto.(UDP/TCP/ICMP etc)
+ 190          *
+ 191          * Parameters:
+ 192          *   proto -  Protocol type for the packets we want to retrive.
+ 193          *            use TCPPROTOCOL,UDPPROTOCOL,ICMPPROTOCOL as they have been declared 
+ 194          *            already in "IPStack.h"
+ 195          *            with the appropriate values.
+ 196          *   packet - pointer to a buffer that can store the RX'd packet of type proto.
+ 197          *             
+ 198          * Returns:
+ 199          *   It returns '1' if it finds a packet of type proto.(UDP/TCP/ICMP etc)
+ 200          *******************************************************************************/
+ 201          unsigned int GetPacket( int proto, unsigned char* packet ){ 
+ 202   1          unsigned int len;
+ 203   1         
+ 204   1          /*Did we get any packets?*/
+ 205   1          if ( len = MACRead( packet, MAXPACKETLEN ) ){
+ 206   2          
+ 207   2              /*Lets check if its an ARP packet.*/
+ 208   2              EtherNetII* eth = (EtherNetII*)packet;
+ 209   2              
+ 210   2              if ( eth->type == (ARPPACKET) ){
+ 211   3                  /*Its an ARP Packet.*/
+ 212   3                  ARP* arpPacket = (ARP*)packet;
+ 213   3                  if ( arpPacket->opCode == (ARPREQUEST)){
+ 214   4                      /*We have recd. an ARP Request,and
+ 215   4                        we should reply.*/
+ 216   4                      return(ReplyArpRequest(arpPacket));
+ 217   4                  }
+ 218   3              } else if( eth->type == (IPPACKET) ){/*Is it an IP Packet?*/
+ 219   3              /*Its an IP Packet,so we should go ahead and check its
+ 220   3              protocol.(UDP/TCP/ICMP etc.) */
+ 221   3                  
+ 222   3                  IPhdr* ip = (IPhdr*)packet;
+ 223   3              
+ 224   3                  /*PING PACKET HANDLER*/
+ 225   3                  if( (ip->protocol == ICMPPROTOCOL) ){
+ 226   4                      ICMPhdr* ping = (ICMPhdr*)packet;
+ 227   4                      if(ping->type==ICMPREQUEST){
+ 228   5                          /*Someone has pinged us,lets reply.*/
+ 229   5                          return(PingReply((ICMPhdr*)packet, len));
+ 230   5                      }else if(ping->type==ICMPREPLY){
+ 231   5                      /*We have recd. Ping replies.
+ 232   5                      (Did we ping someone?)
+ 233   5                      Process them.*/
+ 234   5                      /*PING REPLY RECD. PROCESSSING CODE GOES HERE*/
+ 235   5                      }
+ 236   4                  }
+ 237   3                  
+ 238   3                  if((ip->protocol==TCPPROTOCOL)){
+ 239   4                      TCPhdr* Pack = (TCPhdr*)packet;
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 5   
+
+ 240   4                      
+ 241   4                      //Reply with a SYNACK to a SYN(WebServer)
+ 242   4                      //or with an ACK to a SYNACK
+ 243   4                      if(Pack->SYN==1){
+ 244   5                          if((Pack->destPort==WClientPort)&&(Pack->ACK==1)){
+ 245   6                              //WebClient
+ 246   6                              //We mustve sent a SYN somewhere externally,
+ 247   6                              //We have a SYN-ACK from a Webserver.
+ 248   6                              //Reply with an ACK.
+ 249   6                              WebClientQueryRTS=1;//Flag set.Client can now send query.
+ 250   6                              return(ackTcp(Pack,(Pack->ip.len)+14,0));//Send that ACK.
+ 251   6                          }else if((Pack->destPort==WWWPort)&&(Pack->ACK==0)){
+ 252   6                              //WebServer
+ 253   6                              //Its a SYN from a client,
+ 254   6                              //reply with a SYNACK.
+ 255   6                              return(ackTcp(Pack,(Pack->ip.len)+14,1));
+ 256   6                          }
+ 257   5                      }
+ 258   4                      
+ 259   4                      //If we get a PSH-ACK,its the GET query or Client Reply.
+ 260   4                      //If we get an RST/FINACK,reply with an ACK,
+ 261   4                      //If its a normal ACK,do nothing.
+ 262   4                      if((Pack->PSH==1)&&(Pack->ACK==1)){
+ 263   5                          if(Pack->destPort==WWWPort){
+ 264   6                              //Its a query to the server.
+ 265   6                              WebServerGETRecd=1;
+ 266   6                          }else if(Pack->destPort==WClientPort){
+ 267   6                              //Its a reply to our client.
+ 268   6                              WebClientDataRecd=1;
+ 269   6                          }
+ 270   5                      }
+ 271   4                       
+ 272   4                          
+ 273   4                      /*If we get an RST/FINACK,reply with an ACK*/
+ 274   4                      if((Pack->FIN==1)||(Pack->RST==1)){
+ 275   5                          return(ackTcp(Pack,(Pack->ip.len)+14,0));
+ 276   5                      }
+ 277   4      
+ 278   4                      }
+ 279   3      
+ 280   3                 
+ 281   3              
+ 282   3                  /*Packet type check,as passed via proto*/
+ 283   3                  if( ip->protocol == proto ){
+ 284   4                      /*Yes,there is a packet of your requested protocol type.*/
+ 285   4                      return 1;
+ 286   4                  }
+ 287   3              
+ 288   3              }
+ 289   2          }
+ 290   1          
+ 291   1          return 0;
+ 292   1      }
+ 293          
+ 294          /*******************************************************************************
+ 295          * Function Name: IPstack_Start
+ 296          ********************************************************************************
+ 297          * Summary:
+ 298          *   This function initializes the IP Stack,and the Chip.
+ 299          *   It performs an ARP request with the purpose of finding 
+ 300          *   the router MAC Address for use by the remaining stack.
+ 301          *   
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 6   
+
+ 302          *   This function *must be called first.*
+ 303          *
+ 304          *   Ensure that RouterIP is correct before calling this function.
+ 305          *
+ 306          * Parameters:
+ 307          *   deviceMAC - The MAC Address you would like to assign to the ENC chip.
+ 308          *   deviceIP - The IP Address you would like to assign to the ENC chip.
+ 309          *             
+ 310          * Returns:
+ 311          *   TRUE(0)- if the initialization was successful,and routerMAC has been updated properly.
+ 312          *   FALSE(1) - if the initialization(ARP for Router MAC) was not successful.
+ 313          *******************************************************************************/
+ 314          unsigned int IPstack_Start(unsigned char devMAC[6],unsigned char devIP[4]){  
+ 315   1          unsigned int i = 0;
+ 316   1          ARP arpPacket;
+ 317   1          
+ 318   1          /*Copy the passed MAC and IP into our Global variables*/
+ 319   1          memcpy(deviceMAC,devMAC,6);
+ 320   1          memcpy(deviceIP,devIP,4);
+ 321   1      
+ 322   1          /*Initialize SPI and the Chip's memory,PHY etc.*/
+ 323   1          initMAC( deviceMAC );
+ 324   1          
+ 325   1          /*Check if Link is Up*/
+ 326   1          if(IsLinkUp()==0){
+ 327   2              return FALSE;
+ 328   2          }
+ 329   1          
+ 330   1          /*Lets find the router's MAC address*/
+ 331   1          SendArpRequest( routerIP );
+ 332   1          
+ 333   1          /*Lets wait for the reply*/
+ 334   1          for(i=0; i < 0x5fff; i++){
+ 335   2              if( MACRead( (unsigned char*) &arpPacket, sizeof(ARP) )!=0 ){
+ 336   3                  if( (arpPacket.eth.type == (ARPPACKET))&& (arpPacket.opCode == (ARPREPLY)) && (!memcmp( arpPac
+             -ket.senderIP, routerIP, sizeof(routerIP) )) ){
+ 337   4                      /*Aha! The router sends back its MAC.Copy it into our appropriate global var.*/
+ 338   4                      memcpy( routerMAC, arpPacket.senderMAC, sizeof(routerMAC) );
+ 339   4                      return TRUE;
+ 340   4                  }
+ 341   3              }
+ 342   2          }
+ 343   1          return FALSE;
+ 344   1      }
+ 345          
+ 346          /*******************************************************************************
+ 347          * Function Name: IPstackIdle
+ 348          ********************************************************************************
+ 349          * Summary:
+ 350          *   This function can be called in the Idle period of the stack,
+ 351          *   possibly in an endless loop after it has finished the main tasks.
+ 352          *   It uses GetPacket,and so can auto-reply to Pings and ARP requests.
+ 353          * Parameters:
+ 354          *   none.
+ 355          *             
+ 356          * Returns:
+ 357          *  none.
+ 358          *******************************************************************************/
+ 359          void IPstackIdle(void){
+ 360   1          unsigned char packet[MAXPACKETLEN];
+ 361   1          TCPhdr* TCPacket = (TCPhdr*)packet;
+ 362   1          
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 7   
+
+ 363   1          /*Check if Link is Up*/
+ 364   1          if(IsLinkUp()==0){
+ 365   2              return;
+ 366   2          }
+ 367   1          
+ 368   1          /*Nothing specific,just field the Pings and ARP Requests,SYN handshakes and GETs*/
+ 369   1          GetPacket(0,packet);
+ 370   1          
+ 371   1          if(WebServerGETRecd==1){
+ 372   2              WebServer_ProcessRequest(TCPacket);
+ 373   2              WebServerGETRecd=0;
+ 374   2          }
+ 375   1          
+ 376   1          if(WebClientQueryRTS==1){
+ 377   2              /*Handshake over,we can send our GET/POST query etc.*/
+ 378   2              WebClient_BrowseURL(WebClientQuery,TCPacket);
+*** WARNING C182 IN LINE 378 OF .\IPStack.c: pointer to different objects
+ 379   2              WebClientQueryRTS=0;//Reset Flag.
+ 380   2          }
+ 381   1          
+ 382   1          if(WebClientDataRecd==1){
+ 383   2              /*Call your reply processing function here.*/
+ 384   2              WebClient_ProcessReply(TCPacket);
+ 385   2              
+ 386   2              /*Send an ACK to acknowledge the Client Query Reply.*/
+ 387   2              ackTcp(TCPacket,(TCPacket->ip.len)+14,0);
+ 388   2              
+ 389   2              /*----Now Send a FINACK----*/
+ 390   2              /*Set the FIN flag.*/
+ 391   2              TCPacket->FIN=1;
+ 392   2              /*Zero out the checksums*/
+ 393   2              TCPacket->ip.chksum=0x0000;
+ 394   2              TCPacket->chksum=0x0000;
+ 395   2              /*Compute the checksums*/
+ 396   2              TCPacket->ip.chksum=checksum((unsigned char*)TCPacket + sizeof(EtherNetII),sizeof(IPhdr)-sizeof(Et
+             -herNetII),0);
+ 397   2              TCPacket->chksum = checksum((unsigned char*)TCPacket->ip.source,0x08+0x14,2);
+ 398   2              /*Send the FINACK*/
+ 399   2              MACWrite(packet,sizeof(TCPhdr));
+ 400   2              
+ 401   2              /*Reset Reply Recd flag to indicate that Reply is processed.*/
+ 402   2              WebClientDataRecd=2;
+ 403   2          }
+ 404   1      }
+ 405          
+ 406          /*******************************************************************************
+ 407          * Function Name: ackTcp
+ 408          ********************************************************************************
+ 409          * Summary:
+ 410          *   Creates an TCP ACK packet from a recd TCP packet.This is used to create
+ 411          *   all kinds of ACK-s(including SYN-ACK) during an HTTP Transaction.
+ 412          *
+ 413          * Parameters:
+ 414          *   tcp - pointer to the start of a TCP packet which is to be ACK'd.
+ 415          *   len - length of the TCP packet which is to be ACK'd.
+ 416          *   syn_val - If this is 1,then the ack will be a SYN ACK with MSS=1408.
+ 417          *             If this is 0,then its a bare-bones ACK.
+ 418          *             
+ 419          * Returns:
+ 420          *   The length of ACK packet made.
+ 421          *******************************************************************************/
+ 422          unsigned int ackTcp(TCPhdr* tcp, unsigned int len,bit syn_val){
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 8   
+
+ 423   1          char ack[4];
+ 424   1          unsigned int destPort;
+ 425   1          unsigned char dlength=0;
+ 426   1          unsigned char* datptr;
+ 427   1        
+ 428   1          /*Zero out the checksum fields*/
+ 429   1          tcp->chksum = 0x0;
+ 430   1          tcp->ip.chksum = 0x0;
+ 431   1        
+ 432   1          /*Swap the MACs in the ETH header*/
+ 433   1          memcpy( tcp->ip.eth.DestAddrs, tcp->ip.eth.SrcAddrs, 6 );
+ 434   1          memcpy( tcp->ip.eth.SrcAddrs, deviceMAC, 6 );
+ 435   1        
+ 436   1          /*Swap the IP Addresses in the IP header*/
+ 437   1          memcpy( tcp->ip.dest, tcp->ip.source, 4 );
+ 438   1          memcpy( tcp->ip.source, deviceIP, 4 );
+ 439   1        
+ 440   1          /*Swap the Ports in the TCP header*/
+ 441   1          destPort = tcp->destPort;
+ 442   1          tcp->destPort = tcp->sourcePort;
+ 443   1          tcp->sourcePort = destPort;
+ 444   1          /*Swap the ACK and Sequence numbers*/
+ 445   1          memcpy( ack, tcp->ackNo, sizeof(ack) );
+ 446   1          memcpy( tcp->ackNo, tcp->seqNo, sizeof(ack) );
+ 447   1          memcpy( tcp->seqNo, ack, sizeof(ack) );
+ 448   1        
+ 449   1          /*Increment Ack Number if its a SYN,or FIN(ACK) packet,
+ 450   1          If not,then fill it accordingly.*/
+ 451   1          if( (tcp->SYN==1) || (tcp->FIN==1)){
+ 452   2              /*Increment Ack Number if its a SYN,or FINACK packet.*/
+ 453   2              add32( tcp->ackNo, 1 );
+ 454   2          }else{
+ 455   2              add32( tcp->ackNo, len - sizeof(TCPhdr) );
+ 456   2          }
+ 457   1      
+ 458   1          /*If its supposed to be a SYNACK packet,then add MSS option.
+ 459   1          MSS= Maximum segment size
+ 460   1          If not,then set the appropriate value in the length field of TCP
+ 461   1          and dont add any options.*/
+ 462   1          if(syn_val){
+ 463   2              tcp->SYN = syn_val;
+ 464   2              datptr = (unsigned char*)(tcp) + 0x34 ;
+ 465   2              *datptr++=0x02;
+ 466   2              *datptr++=0x04;
+ 467   2              *datptr++=HI8(1408);
+ 468   2              *datptr++=LO8(1408);
+ 469   2              tcp->hdrLen = 0x06;//6 because its length is 24bytes.Multiples of 4bytes.
+ 470   2              dlength+=4;//MSS option is 4bytes,so length of (data)options=4. 
+ 471   2          }else{
+ 472   2              tcp->hdrLen = 0x05;//5 because its length is 20bytes.Multiples of 4bytes.
+ 473   2          }
+ 474   1      
+ 475   1          tcp->ACK=1;//Set the ACK flag.
+ 476   1          tcp->PSH=0;//Clear the PSH flag.
+ 477   1          tcp->FIN=0;//Clear the FIN flag.
+ 478   1          tcp->RST=0;//Clear the RST flag.
+ 479   1          
+ 480   1          /*Length of the Packet*/
+ 481   1          len = sizeof(TCPhdr)+dlength;
+ 482   1          
+ 483   1          /*IP Length field.*/
+ 484   1          tcp->ip.len = (len-sizeof(EtherNetII));
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 9   
+
+ 485   1          
+ 486   1          /*Compute the checksums*/
+ 487   1          tcp->ip.chksum=checksum((unsigned char*)tcp + sizeof(EtherNetII),sizeof(IPhdr)-sizeof(EtherNetII),0);
+ 488   1          tcp->chksum = checksum((unsigned char*)tcp->ip.source,0x08+0x14+dlength,2);
+ 489   1      
+ 490   1          return(MACWrite((unsigned char*)tcp,len));
+ 491   1      }
+ 492          
+ 493          /* [] END OF FILE */
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 10  
+
+ASSEMBLY LISTING OF GENERATED OBJECT CODE
+
+
+             ; FUNCTION _add32 (BEGIN)
+                                           ; SOURCE LINE # 30
+0000 900000      R     MOV     DPTR,#op32
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#op16
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 31
+000E 900000      R     MOV     DPTR,#op16
+0011 E0                MOVX    A,@DPTR
+0012 FE                MOV     R6,A
+0013 A3                INC     DPTR
+0014 E0                MOVX    A,@DPTR
+0015 FF                MOV     R7,A
+0016 EF                MOV     A,R7
+0017 54FF              ANL     A,#0FFH
+0019 FF                MOV     R7,A
+001A 900000      R     MOV     DPTR,#op32
+001D 120000      E     LCALL   ?C?PLDXDATA
+0020 E9                MOV     A,R1
+0021 2403              ADD     A,#03H
+0023 F9                MOV     R1,A
+0024 EA                MOV     A,R2
+0025 3400              ADDC    A,#00H
+0027 FA                MOV     R2,A
+0028 EF                MOV     A,R7
+0029 120000      E     LCALL   ?C?CILDPTR
+                                           ; SOURCE LINE # 32
+002C 900000      R     MOV     DPTR,#op16
+002F E0                MOVX    A,@DPTR
+0030 FE                MOV     R6,A
+0031 A3                INC     DPTR
+0032 E0                MOVX    A,@DPTR
+0033 FF                MOV     R7,A
+0034 EE                MOV     A,R6
+0035 FF                MOV     R7,A
+0036 7E00              MOV     R6,#00H
+0038 900000      R     MOV     DPTR,#op32
+003B 120000      E     LCALL   ?C?PLDXDATA
+003E E9                MOV     A,R1
+003F 2402              ADD     A,#02H
+0041 F9                MOV     R1,A
+0042 EA                MOV     A,R2
+0043 3400              ADDC    A,#00H
+0045 FA                MOV     R2,A
+0046 EF                MOV     A,R7
+0047 120000      E     LCALL   ?C?CILDPTR
+                                           ; SOURCE LINE # 34
+004A 900000      R     MOV     DPTR,#op32
+004D 120000      E     LCALL   ?C?PLDXDATA
+0050 E9                MOV     A,R1
+0051 2402              ADD     A,#02H
+0053 F9                MOV     R1,A
+0054 EA                MOV     A,R2
+0055 3400              ADDC    A,#00H
+0057 FA                MOV     R2,A
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 11  
+
+0058 120000      E     LCALL   ?C?CLDPTR
+005B FF                MOV     R7,A
+005C EF                MOV     A,R7
+005D FD                MOV     R5,A
+005E 7C00              MOV     R4,#00H
+0060 900000      R     MOV     DPTR,#op16
+0063 E0                MOVX    A,@DPTR
+0064 FE                MOV     R6,A
+0065 A3                INC     DPTR
+0066 E0                MOVX    A,@DPTR
+0067 FF                MOV     R7,A
+0068 EE                MOV     A,R6
+0069 FF                MOV     R7,A
+006A 7E00              MOV     R6,#00H
+006C C3                CLR     C
+006D ED                MOV     A,R5
+006E 9F                SUBB    A,R7
+006F EC                MOV     A,R4
+0070 9E                SUBB    A,R6
+0071 5033              JNC     ?C0001
+                                           ; SOURCE LINE # 35
+0073 900000      R     MOV     DPTR,#op32
+0076 120000      E     LCALL   ?C?PLDXDATA
+0079 E9                MOV     A,R1
+007A 2401              ADD     A,#01H
+007C F9                MOV     R1,A
+007D EA                MOV     A,R2
+007E 3400              ADDC    A,#00H
+0080 FA                MOV     R2,A
+0081 7401              MOV     A,#01H
+0083 120000      E     LCALL   ?C?CILDPTR
+                                           ; SOURCE LINE # 36
+0086 900000      R     MOV     DPTR,#op32
+0089 120000      E     LCALL   ?C?PLDXDATA
+008C E9                MOV     A,R1
+008D 2401              ADD     A,#01H
+008F F9                MOV     R1,A
+0090 EA                MOV     A,R2
+0091 3400              ADDC    A,#00H
+0093 FA                MOV     R2,A
+0094 120000      E     LCALL   ?C?CLDPTR
+0097 FF                MOV     R7,A
+0098 EF                MOV     A,R7
+0099 700B              JNZ     ?C0001
+                                           ; SOURCE LINE # 37
+009B 900000      R     MOV     DPTR,#op32
+009E 120000      E     LCALL   ?C?PLDXDATA
+00A1 7401              MOV     A,#01H
+00A3 120000      E     LCALL   ?C?CILDPTR
+                                           ; SOURCE LINE # 38
+00A6         ?C0002:
+                                           ; SOURCE LINE # 39
+00A6         ?C0001:
+                                           ; SOURCE LINE # 41
+00A6 900000      R     MOV     DPTR,#op32
+00A9 120000      E     LCALL   ?C?PLDXDATA
+00AC E9                MOV     A,R1
+00AD 2403              ADD     A,#03H
+00AF F9                MOV     R1,A
+00B0 EA                MOV     A,R2
+00B1 3400              ADDC    A,#00H
+00B3 FA                MOV     R2,A
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 12  
+
+00B4 120000      E     LCALL   ?C?CLDPTR
+00B7 FF                MOV     R7,A
+00B8 7E00              MOV     R6,#00H
+00BA 900000      R     MOV     DPTR,#op16
+00BD E0                MOVX    A,@DPTR
+00BE FC                MOV     R4,A
+00BF A3                INC     DPTR
+00C0 E0                MOVX    A,@DPTR
+00C1 FD                MOV     R5,A
+00C2 7C00              MOV     R4,#00H
+00C4 C3                CLR     C
+00C5 EF                MOV     A,R7
+00C6 9D                SUBB    A,R5
+00C7 EE                MOV     A,R6
+00C8 9C                SUBB    A,R4
+00C9 505B              JNC     ?C0006
+                                           ; SOURCE LINE # 42
+00CB 900000      R     MOV     DPTR,#op32
+00CE 120000      E     LCALL   ?C?PLDXDATA
+00D1 E9                MOV     A,R1
+00D2 2402              ADD     A,#02H
+00D4 F9                MOV     R1,A
+00D5 EA                MOV     A,R2
+00D6 3400              ADDC    A,#00H
+00D8 FA                MOV     R2,A
+00D9 7401              MOV     A,#01H
+00DB 120000      E     LCALL   ?C?CILDPTR
+                                           ; SOURCE LINE # 43
+00DE 900000      R     MOV     DPTR,#op32
+00E1 120000      E     LCALL   ?C?PLDXDATA
+00E4 E9                MOV     A,R1
+00E5 2402              ADD     A,#02H
+00E7 F9                MOV     R1,A
+00E8 EA                MOV     A,R2
+00E9 3400              ADDC    A,#00H
+00EB FA                MOV     R2,A
+00EC 120000      E     LCALL   ?C?CLDPTR
+00EF FF                MOV     R7,A
+00F0 EF                MOV     A,R7
+00F1 7033              JNZ     ?C0006
+                                           ; SOURCE LINE # 44
+00F3 900000      R     MOV     DPTR,#op32
+00F6 120000      E     LCALL   ?C?PLDXDATA
+00F9 E9                MOV     A,R1
+00FA 2401              ADD     A,#01H
+00FC F9                MOV     R1,A
+00FD EA                MOV     A,R2
+00FE 3400              ADDC    A,#00H
+0100 FA                MOV     R2,A
+0101 7401              MOV     A,#01H
+0103 120000      E     LCALL   ?C?CILDPTR
+                                           ; SOURCE LINE # 45
+0106 900000      R     MOV     DPTR,#op32
+0109 120000      E     LCALL   ?C?PLDXDATA
+010C E9                MOV     A,R1
+010D 2401              ADD     A,#01H
+010F F9                MOV     R1,A
+0110 EA                MOV     A,R2
+0111 3400              ADDC    A,#00H
+0113 FA                MOV     R2,A
+0114 120000      E     LCALL   ?C?CLDPTR
+0117 FF                MOV     R7,A
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 13  
+
+0118 EF                MOV     A,R7
+0119 700B              JNZ     ?C0006
+                                           ; SOURCE LINE # 46
+011B 900000      R     MOV     DPTR,#op32
+011E 120000      E     LCALL   ?C?PLDXDATA
+0121 7401              MOV     A,#01H
+0123 120000      E     LCALL   ?C?CILDPTR
+                                           ; SOURCE LINE # 47
+0126         ?C0005:
+                                           ; SOURCE LINE # 48
+0126         ?C0004:
+                                           ; SOURCE LINE # 49
+0126         ?C0003:
+                                           ; SOURCE LINE # 50
+0126         ?C0006:
+0126 22                RET     
+             ; FUNCTION _add32 (END)
+
+             ; FUNCTION _checksum (BEGIN)
+                                           ; SOURCE LINE # 83
+0000 900000      R     MOV     DPTR,#buf
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#len
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 85
+000E 7F00              MOV     R7,#00H
+0010 7E00              MOV     R6,#00H
+0012 7D00              MOV     R5,#00H
+0014 7C00              MOV     R4,#00H
+0016 900000      R     MOV     DPTR,#sum
+0019 120000      E     LCALL   ?C?LSTXDATA
+                                           ; SOURCE LINE # 87
+001C 900000      R     MOV     DPTR,#type
+001F E0                MOVX    A,@DPTR
+0020 FF                MOV     R7,A
+0021 EF                MOV     A,R7
+0022 B4013E            CJNE    A,#01H,?C0007
+                                           ; SOURCE LINE # 88
+0025 900000      R     MOV     DPTR,#sum
+0028 120000      E     LCALL   ?C?LLDXDATA
+002B EF                MOV     A,R7
+002C 2411              ADD     A,#011H
+002E FF                MOV     R7,A
+002F EE                MOV     A,R6
+0030 3400              ADDC    A,#00H
+0032 FE                MOV     R6,A
+0033 ED                MOV     A,R5
+0034 3400              ADDC    A,#00H
+0036 FD                MOV     R5,A
+0037 EC                MOV     A,R4
+0038 3400              ADDC    A,#00H
+003A FC                MOV     R4,A
+003B 900000      R     MOV     DPTR,#sum
+003E 120000      E     LCALL   ?C?LSTXDATA
+                                           ; SOURCE LINE # 96
+0041 900000      R     MOV     DPTR,#sum
+0044 120000      E     LCALL   ?C?LLDXDATA0
+0047 900000      R     MOV     DPTR,#len
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 14  
+
+004A E0                MOVX    A,@DPTR
+004B FE                MOV     R6,A
+004C A3                INC     DPTR
+004D E0                MOVX    A,@DPTR
+004E FF                MOV     R7,A
+004F EF                MOV     A,R7
+0050 24F8              ADD     A,#0F8H
+0052 FF                MOV     R7,A
+0053 EE                MOV     A,R6
+0054 34FF              ADDC    A,#0FFH
+0056 FE                MOV     R6,A
+0057 E4                CLR     A
+0058 FC                MOV     R4,A
+0059 FD                MOV     R5,A
+005A 120000      E     LCALL   ?C?LADD
+005D 900000      R     MOV     DPTR,#sum
+0060 120000      E     LCALL   ?C?LSTXDATA
+                                           ; SOURCE LINE # 97
+0063         ?C0007:
+                                           ; SOURCE LINE # 99
+0063 900000      R     MOV     DPTR,#type
+0066 E0                MOVX    A,@DPTR
+0067 FF                MOV     R7,A
+0068 EF                MOV     A,R7
+0069 B4023E            CJNE    A,#02H,?C0009
+                                           ; SOURCE LINE # 100
+006C 900000      R     MOV     DPTR,#sum
+006F 120000      E     LCALL   ?C?LLDXDATA
+0072 EF                MOV     A,R7
+0073 2406              ADD     A,#06H
+0075 FF                MOV     R7,A
+0076 EE                MOV     A,R6
+0077 3400              ADDC    A,#00H
+0079 FE                MOV     R6,A
+007A ED                MOV     A,R5
+007B 3400              ADDC    A,#00H
+007D FD                MOV     R5,A
+007E EC                MOV     A,R4
+007F 3400              ADDC    A,#00H
+0081 FC                MOV     R4,A
+0082 900000      R     MOV     DPTR,#sum
+0085 120000      E     LCALL   ?C?LSTXDATA
+                                           ; SOURCE LINE # 108
+0088 900000      R     MOV     DPTR,#sum
+008B 120000      E     LCALL   ?C?LLDXDATA0
+008E 900000      R     MOV     DPTR,#len
+0091 E0                MOVX    A,@DPTR
+0092 FE                MOV     R6,A
+0093 A3                INC     DPTR
+0094 E0                MOVX    A,@DPTR
+0095 FF                MOV     R7,A
+0096 EF                MOV     A,R7
+0097 24F8              ADD     A,#0F8H
+0099 FF                MOV     R7,A
+009A EE                MOV     A,R6
+009B 34FF              ADDC    A,#0FFH
+009D FE                MOV     R6,A
+009E E4                CLR     A
+009F FC                MOV     R4,A
+00A0 FD                MOV     R5,A
+00A1 120000      E     LCALL   ?C?LADD
+00A4 900000      R     MOV     DPTR,#sum
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 15  
+
+00A7 120000      E     LCALL   ?C?LSTXDATA
+                                           ; SOURCE LINE # 109
+00AA         ?C0008:
+00AA         ?C0009:
+                                           ; SOURCE LINE # 112
+00AA 900000      R     MOV     DPTR,#len
+00AD E0                MOVX    A,@DPTR
+00AE FE                MOV     R6,A
+00AF A3                INC     DPTR
+00B0 E0                MOVX    A,@DPTR
+00B1 FF                MOV     R7,A
+00B2 D3                SETB    C
+00B3 EF                MOV     A,R7
+00B4 9401              SUBB    A,#01H
+00B6 EE                MOV     A,R6
+00B7 9400              SUBB    A,#00H
+00B9 5003              JNC     $ + 5H
+00BB 020000      R     LJMP    ?C0010
+                                           ; SOURCE LINE # 113
+00BE 900000      R     MOV     DPTR,#sum
+00C1 120000      E     LCALL   ?C?LLDXDATA
+00C4 C004              PUSH    AR4
+00C6 C005              PUSH    AR5
+00C8 C006              PUSH    AR6
+00CA C007              PUSH    AR7
+00CC 900000      R     MOV     DPTR,#buf
+00CF 120000      E     LCALL   ?C?PLDXDATA
+00D2 E9                MOV     A,R1
+00D3 2401              ADD     A,#01H
+00D5 F9                MOV     R1,A
+00D6 EA                MOV     A,R2
+00D7 3400              ADDC    A,#00H
+00D9 FA                MOV     R2,A
+00DA 120000      E     LCALL   ?C?CLDPTR
+00DD FF                MOV     R7,A
+00DE E4                CLR     A
+00DF FC                MOV     R4,A
+00E0 FD                MOV     R5,A
+00E1 FE                MOV     R6,A
+00E2 C004              PUSH    AR4
+00E4 C005              PUSH    AR5
+00E6 C006              PUSH    AR6
+00E8 C007              PUSH    AR7
+00EA 900000      R     MOV     DPTR,#buf
+00ED 120000      E     LCALL   ?C?PLDXDATA
+00F0 120000      E     LCALL   ?C?CLDPTR
+00F3 FF                MOV     R7,A
+00F4 E4                CLR     A
+00F5 FC                MOV     R4,A
+00F6 FD                MOV     R5,A
+00F7 FE                MOV     R6,A
+00F8 7808              MOV     R0,#08H
+00FA 120000      E     LCALL   ?C?LSHL
+00FD A804              MOV     R0,AR4
+00FF A905              MOV     R1,AR5
+0101 AA06              MOV     R2,AR6
+0103 AB07              MOV     R3,AR7
+0105 D007              POP     AR7
+0107 D006              POP     AR6
+0109 D005              POP     AR5
+010B D004              POP     AR4
+010D 120000      E     LCALL   ?C?LOR
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 16  
+
+0110 EF                MOV     A,R7
+0111 54FF              ANL     A,#0FFH
+0113 FB                MOV     R3,A
+0114 EE                MOV     A,R6
+0115 54FF              ANL     A,#0FFH
+0117 FA                MOV     R2,A
+0118 ED                MOV     A,R5
+0119 5400              ANL     A,#00H
+011B F9                MOV     R1,A
+011C EC                MOV     A,R4
+011D 5400              ANL     A,#00H
+011F F8                MOV     R0,A
+0120 D007              POP     AR7
+0122 D006              POP     AR6
+0124 D005              POP     AR5
+0126 D004              POP     AR4
+0128 120000      E     LCALL   ?C?LADD
+012B 900000      R     MOV     DPTR,#sum
+012E 120000      E     LCALL   ?C?LSTXDATA
+                                           ; SOURCE LINE # 114
+0131 900000      R     MOV     DPTR,#buf+01H
+0134 E4                CLR     A
+0135 75F002            MOV     B,#02H
+0138 120000      E     LCALL   ?C?IILDX
+                                           ; SOURCE LINE # 115
+013B 900000      R     MOV     DPTR,#len
+013E 74FF              MOV     A,#0FFH
+0140 75F0FE            MOV     B,#0FEH
+0143 120000      E     LCALL   ?C?IILDX
+                                           ; SOURCE LINE # 116
+0146 020000      R     LJMP    ?C0009
+0149         ?C0010:
+                                           ; SOURCE LINE # 119
+0149 900000      R     MOV     DPTR,#len
+014C E0                MOVX    A,@DPTR
+014D FE                MOV     R6,A
+014E A3                INC     DPTR
+014F E0                MOVX    A,@DPTR
+0150 FF                MOV     R7,A
+0151 EF                MOV     A,R7
+0152 4E                ORL     A,R6
+0153 603E              JZ      ?C0012
+                                           ; SOURCE LINE # 120
+0155 900000      R     MOV     DPTR,#sum
+0158 120000      E     LCALL   ?C?LLDXDATA
+015B C004              PUSH    AR4
+015D C005              PUSH    AR5
+015F C006              PUSH    AR6
+0161 C007              PUSH    AR7
+0163 900000      R     MOV     DPTR,#buf
+0166 120000      E     LCALL   ?C?PLDXDATA
+0169 120000      E     LCALL   ?C?CLDPTR
+016C FF                MOV     R7,A
+016D EF                MOV     A,R7
+016E 54FF              ANL     A,#0FFH
+0170 FF                MOV     R7,A
+0171 E4                CLR     A
+0172 FC                MOV     R4,A
+0173 FD                MOV     R5,A
+0174 FE                MOV     R6,A
+0175 7808              MOV     R0,#08H
+0177 120000      E     LCALL   ?C?LSHL
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 17  
+
+017A A804              MOV     R0,AR4
+017C A905              MOV     R1,AR5
+017E AA06              MOV     R2,AR6
+0180 AB07              MOV     R3,AR7
+0182 D007              POP     AR7
+0184 D006              POP     AR6
+0186 D005              POP     AR5
+0188 D004              POP     AR4
+018A 120000      E     LCALL   ?C?LADD
+018D 900000      R     MOV     DPTR,#sum
+0190 120000      E     LCALL   ?C?LSTXDATA
+                                           ; SOURCE LINE # 121
+0193         ?C0011:
+0193         ?C0012:
+                                           ; SOURCE LINE # 125
+0193 900000      R     MOV     DPTR,#sum
+0196 120000      E     LCALL   ?C?LLDXDATA
+0199 7810              MOV     R0,#010H
+019B 120000      E     LCALL   ?C?ULSHR
+019E EC                MOV     A,R4
+019F 4D                ORL     A,R5
+01A0 4E                ORL     A,R6
+01A1 4F                ORL     A,R7
+01A2 6044              JZ      ?C0013
+                                           ; SOURCE LINE # 126
+01A4 900000      R     MOV     DPTR,#sum
+01A7 120000      E     LCALL   ?C?LLDXDATA
+01AA EF                MOV     A,R7
+01AB 54FF              ANL     A,#0FFH
+01AD FF                MOV     R7,A
+01AE EE                MOV     A,R6
+01AF 54FF              ANL     A,#0FFH
+01B1 FE                MOV     R6,A
+01B2 ED                MOV     A,R5
+01B3 5400              ANL     A,#00H
+01B5 FD                MOV     R5,A
+01B6 EC                MOV     A,R4
+01B7 5400              ANL     A,#00H
+01B9 FC                MOV     R4,A
+01BA C004              PUSH    AR4
+01BC C005              PUSH    AR5
+01BE C006              PUSH    AR6
+01C0 C007              PUSH    AR7
+01C2 900000      R     MOV     DPTR,#sum
+01C5 120000      E     LCALL   ?C?LLDXDATA
+01C8 7810              MOV     R0,#010H
+01CA 120000      E     LCALL   ?C?ULSHR
+01CD A804              MOV     R0,AR4
+01CF A905              MOV     R1,AR5
+01D1 AA06              MOV     R2,AR6
+01D3 AB07              MOV     R3,AR7
+01D5 D007              POP     AR7
+01D7 D006              POP     AR6
+01D9 D005              POP     AR5
+01DB D004              POP     AR4
+01DD 120000      E     LCALL   ?C?LADD
+01E0 900000      R     MOV     DPTR,#sum
+01E3 120000      E     LCALL   ?C?LSTXDATA
+                                           ; SOURCE LINE # 127
+01E6 80AB              SJMP    ?C0012
+01E8         ?C0013:
+                                           ; SOURCE LINE # 130
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 18  
+
+01E8 900000      R     MOV     DPTR,#sum
+01EB 120000      E     LCALL   ?C?LLDXDATA
+01EE EF                MOV     A,R7
+01EF 64FF              XRL     A,#0FFH
+01F1 FF                MOV     R7,A
+01F2 EE                MOV     A,R6
+01F3 64FF              XRL     A,#0FFH
+01F5 FE                MOV     R6,A
+01F6 ED                MOV     A,R5
+01F7 6400              XRL     A,#00H
+01F9 FD                MOV     R5,A
+01FA EC                MOV     A,R4
+01FB 6400              XRL     A,#00H
+01FD FC                MOV     R4,A
+                                           ; SOURCE LINE # 131
+01FE         ?C0014:
+01FE 22                RET     
+             ; FUNCTION _checksum (END)
+
+             ; FUNCTION _SetupBasicIPPacket (BEGIN)
+                                           ; SOURCE LINE # 149
+0000 900000      R     MOV     DPTR,#packet
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#proto
+0009 ED                MOV     A,R5
+000A F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 151
+000B 900000      R     MOV     DPTR,#packet
+000E 120000      E     LCALL   ?C?PLDXDATA
+0011 900000      R     MOV     DPTR,#ip
+0014 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 154
+0017 900000      R     MOV     DPTR,#ip
+001A 120000      E     LCALL   ?C?PLDXDATA
+001D E9                MOV     A,R1
+001E 240C              ADD     A,#0CH
+0020 F9                MOV     R1,A
+0021 EA                MOV     A,R2
+0022 3400              ADDC    A,#00H
+0024 FA                MOV     R2,A
+0025 7408              MOV     A,#08H
+0027 75F000            MOV     B,#00H
+002A 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 157
+002D 7B01              MOV     R3,#01H
+002F 7A00        E     MOV     R2,#HIGH routerMAC
+0031 7900        E     MOV     R1,#LOW routerMAC
+0033 C003              PUSH    AR3
+0035 C002              PUSH    AR2
+0037 C001              PUSH    AR1
+0039 900000      R     MOV     DPTR,#ip
+003C 120000      E     LCALL   ?C?PLDXDATA
+003F A801              MOV     R0,AR1
+0041 AC02              MOV     R4,AR2
+0043 AD03              MOV     R5,AR3
+0045 D001              POP     AR1
+0047 D002              POP     AR2
+0049 D003              POP     AR3
+004B 7E00              MOV     R6,#00H
+004D 7F06              MOV     R7,#06H
+004F 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 158
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 19  
+
+0052 7B01              MOV     R3,#01H
+0054 7A00        E     MOV     R2,#HIGH deviceMAC
+0056 7900        E     MOV     R1,#LOW deviceMAC
+0058 C003              PUSH    AR3
+005A C002              PUSH    AR2
+005C C001              PUSH    AR1
+005E 900000      R     MOV     DPTR,#ip
+0061 120000      E     LCALL   ?C?PLDXDATA
+0064 E9                MOV     A,R1
+0065 2406              ADD     A,#06H
+0067 F9                MOV     R1,A
+0068 EA                MOV     A,R2
+0069 3400              ADDC    A,#00H
+006B FA                MOV     R2,A
+006C A801              MOV     R0,AR1
+006E AC02              MOV     R4,AR2
+0070 AD03              MOV     R5,AR3
+0072 D001              POP     AR1
+0074 D002              POP     AR2
+0076 D003              POP     AR3
+0078 7E00              MOV     R6,#00H
+007A 7F06              MOV     R7,#06H
+007C 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 161
+007F 7B01              MOV     R3,#01H
+0081 7A00        E     MOV     R2,#HIGH deviceIP
+0083 7900        E     MOV     R1,#LOW deviceIP
+0085 C003              PUSH    AR3
+0087 C002              PUSH    AR2
+0089 C001              PUSH    AR1
+008B 900000      R     MOV     DPTR,#ip
+008E 120000      E     LCALL   ?C?PLDXDATA
+0091 E9                MOV     A,R1
+0092 241A              ADD     A,#01AH
+0094 F9                MOV     R1,A
+0095 EA                MOV     A,R2
+0096 3400              ADDC    A,#00H
+0098 FA                MOV     R2,A
+0099 A801              MOV     R0,AR1
+009B AC02              MOV     R4,AR2
+009D AD03              MOV     R5,AR3
+009F D001              POP     AR1
+00A1 D002              POP     AR2
+00A3 D003              POP     AR3
+00A5 7E00              MOV     R6,#00H
+00A7 7F04              MOV     R7,#04H
+00A9 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 162
+00AC 900000      R     MOV     DPTR,#destIP
+00AF 120000      E     LCALL   ?C?PLDXDATA
+00B2 C003              PUSH    AR3
+00B4 C002              PUSH    AR2
+00B6 C001              PUSH    AR1
+00B8 900000      R     MOV     DPTR,#ip
+00BB 120000      E     LCALL   ?C?PLDXDATA
+00BE E9                MOV     A,R1
+00BF 241E              ADD     A,#01EH
+00C1 F9                MOV     R1,A
+00C2 EA                MOV     A,R2
+00C3 3400              ADDC    A,#00H
+00C5 FA                MOV     R2,A
+00C6 A801              MOV     R0,AR1
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 20  
+
+00C8 AC02              MOV     R4,AR2
+00CA AD03              MOV     R5,AR3
+00CC D001              POP     AR1
+00CE D002              POP     AR2
+00D0 D003              POP     AR3
+00D2 7E00              MOV     R6,#00H
+00D4 7F04              MOV     R7,#04H
+00D6 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 165
+00D9 900000      R     MOV     DPTR,#ip
+00DC 120000      E     LCALL   ?C?PLDXDATA
+00DF E9                MOV     A,R1
+00E0 240E              ADD     A,#0EH
+00E2 F9                MOV     R1,A
+00E3 EA                MOV     A,R2
+00E4 3400              ADDC    A,#00H
+00E6 FA                MOV     R2,A
+00E7 120000      E     LCALL   ?C?CLDPTR
+00EA FF                MOV     R7,A
+00EB EF                MOV     A,R7
+00EC 540F              ANL     A,#0FH
+00EE FF                MOV     R7,A
+00EF EF                MOV     A,R7
+00F0 4440              ORL     A,#040H
+00F2 FF                MOV     R7,A
+00F3 EF                MOV     A,R7
+00F4 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 166
+00F7 900000      R     MOV     DPTR,#ip
+00FA 120000      E     LCALL   ?C?PLDXDATA
+00FD E9                MOV     A,R1
+00FE 240E              ADD     A,#0EH
+0100 F9                MOV     R1,A
+0101 EA                MOV     A,R2
+0102 3400              ADDC    A,#00H
+0104 FA                MOV     R2,A
+0105 120000      E     LCALL   ?C?CLDPTR
+0108 FF                MOV     R7,A
+0109 EF                MOV     A,R7
+010A 54F0              ANL     A,#0F0H
+010C FF                MOV     R7,A
+010D EF                MOV     A,R7
+010E 4405              ORL     A,#05H
+0110 FF                MOV     R7,A
+0111 EF                MOV     A,R7
+0112 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 167
+0115 900000      R     MOV     DPTR,#ip
+0118 120000      E     LCALL   ?C?PLDXDATA
+011B E9                MOV     A,R1
+011C 240F              ADD     A,#0FH
+011E F9                MOV     R1,A
+011F EA                MOV     A,R2
+0120 3400              ADDC    A,#00H
+0122 FA                MOV     R2,A
+0123 E4                CLR     A
+0124 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 168
+0127 900000      R     MOV     DPTR,#ip
+012A 120000      E     LCALL   ?C?PLDXDATA
+012D E9                MOV     A,R1
+012E 2412              ADD     A,#012H
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 21  
+
+0130 F9                MOV     R1,A
+0131 EA                MOV     A,R2
+0132 3400              ADDC    A,#00H
+0134 FA                MOV     R2,A
+0135 E4                CLR     A
+0136 75F002            MOV     B,#02H
+0139 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 169
+013C 900000      R     MOV     DPTR,#ip
+013F 120000      E     LCALL   ?C?PLDXDATA
+0142 E9                MOV     A,R1
+0143 2414              ADD     A,#014H
+0145 F9                MOV     R1,A
+0146 EA                MOV     A,R2
+0147 3400              ADDC    A,#00H
+0149 FA                MOV     R2,A
+014A 120000      E     LCALL   ?C?ILDPTR
+014D FF                MOV     R7,A
+014E AEF0              MOV     R6,B
+0150 EF                MOV     A,R7
+0151 541F              ANL     A,#01FH
+0153 FF                MOV     R7,A
+0154 EF                MOV     A,R7
+0155 4440              ORL     A,#040H
+0157 FF                MOV     R7,A
+0158 EE                MOV     A,R6
+0159 8FF0              MOV     B,R7
+015B 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 170
+015E 900000      R     MOV     DPTR,#ip
+0161 120000      E     LCALL   ?C?PLDXDATA
+0164 E9                MOV     A,R1
+0165 2414              ADD     A,#014H
+0167 F9                MOV     R1,A
+0168 EA                MOV     A,R2
+0169 3400              ADDC    A,#00H
+016B FA                MOV     R2,A
+016C 120000      E     LCALL   ?C?ILDPTR
+016F FF                MOV     R7,A
+0170 AEF0              MOV     R6,B
+0172 EF                MOV     A,R7
+0173 54E0              ANL     A,#0E0H
+0175 FF                MOV     R7,A
+0176 EE                MOV     A,R6
+0177 8FF0              MOV     B,R7
+0179 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 171
+017C 900000      R     MOV     DPTR,#ip
+017F 120000      E     LCALL   ?C?PLDXDATA
+0182 E9                MOV     A,R1
+0183 2414              ADD     A,#014H
+0185 F9                MOV     R1,A
+0186 EA                MOV     A,R2
+0187 3400              ADDC    A,#00H
+0189 FA                MOV     R2,A
+018A 120000      E     LCALL   ?C?ILDPTR
+018D FF                MOV     R7,A
+018E AEF0              MOV     R6,B
+0190 7E00              MOV     R6,#00H
+0192 EE                MOV     A,R6
+0193 8FF0              MOV     B,R7
+0195 120000      E     LCALL   ?C?ISTPTR
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 22  
+
+                                           ; SOURCE LINE # 172
+0198 900000      R     MOV     DPTR,#ip
+019B 120000      E     LCALL   ?C?PLDXDATA
+019E E9                MOV     A,R1
+019F 2416              ADD     A,#016H
+01A1 F9                MOV     R1,A
+01A2 EA                MOV     A,R2
+01A3 3400              ADDC    A,#00H
+01A5 FA                MOV     R2,A
+01A6 7480              MOV     A,#080H
+01A8 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 175
+01AB 900000      R     MOV     DPTR,#proto
+01AE E0                MOVX    A,@DPTR
+01AF FF                MOV     R7,A
+01B0 900000      R     MOV     DPTR,#ip
+01B3 120000      E     LCALL   ?C?PLDXDATA
+01B6 E9                MOV     A,R1
+01B7 2417              ADD     A,#017H
+01B9 F9                MOV     R1,A
+01BA EA                MOV     A,R2
+01BB 3400              ADDC    A,#00H
+01BD FA                MOV     R2,A
+01BE EF                MOV     A,R7
+01BF 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 178
+01C2 900000      R     MOV     DPTR,#ip
+01C5 120000      E     LCALL   ?C?PLDXDATA
+01C8 E9                MOV     A,R1
+01C9 2418              ADD     A,#018H
+01CB F9                MOV     R1,A
+01CC EA                MOV     A,R2
+01CD 3400              ADDC    A,#00H
+01CF FA                MOV     R2,A
+01D0 E4                CLR     A
+01D1 75F000            MOV     B,#00H
+01D4 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 179
+01D7         ?C0015:
+01D7 22                RET     
+             ; FUNCTION _SetupBasicIPPacket (END)
+
+             ; FUNCTION _GetPacket (BEGIN)
+                                           ; SOURCE LINE # 201
+0000 900000      R     MOV     DPTR,#proto
+0003 EE                MOV     A,R6
+0004 F0                MOVX    @DPTR,A
+0005 A3                INC     DPTR
+0006 EF                MOV     A,R7
+0007 F0                MOVX    @DPTR,A
+0008 900000      R     MOV     DPTR,#packet
+000B 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 205
+000E 900000      R     MOV     DPTR,#packet
+0011 120000      E     LCALL   ?C?PLDXDATA
+0014 7D2C              MOV     R5,#02CH
+0016 7C01              MOV     R4,#01H
+0018 120000      E     LCALL   _MACRead
+001B 900000      R     MOV     DPTR,#len
+001E EE                MOV     A,R6
+001F F0                MOVX    @DPTR,A
+0020 FE                MOV     R6,A
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 23  
+
+0021 A3                INC     DPTR
+0022 EF                MOV     A,R7
+0023 F0                MOVX    @DPTR,A
+0024 FF                MOV     R7,A
+0025 EF                MOV     A,R7
+0026 4E                ORL     A,R6
+0027 7003              JNZ     $ + 5H
+0029 020000      R     LJMP    ?C0016
+                                           ; SOURCE LINE # 208
+002C 900000      R     MOV     DPTR,#packet
+002F 120000      E     LCALL   ?C?PLDXDATA
+0032 900000      R     MOV     DPTR,#eth
+0035 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 210
+0038 900000      R     MOV     DPTR,#eth
+003B 120000      E     LCALL   ?C?PLDXDATA
+003E E9                MOV     A,R1
+003F 240C              ADD     A,#0CH
+0041 F9                MOV     R1,A
+0042 EA                MOV     A,R2
+0043 3400              ADDC    A,#00H
+0045 FA                MOV     R2,A
+0046 120000      E     LCALL   ?C?ILDPTR
+0049 FF                MOV     R7,A
+004A AEF0              MOV     R6,B
+004C EF                MOV     A,R7
+004D B4063A            CJNE    A,#06H,?C0017
+0050 EE                MOV     A,R6
+0051 B40836            CJNE    A,#08H,?C0017
+                                           ; SOURCE LINE # 212
+0054 900000      R     MOV     DPTR,#packet
+0057 120000      E     LCALL   ?C?PLDXDATA
+005A 900000      R     MOV     DPTR,#arpPacket
+005D 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 213
+0060 900000      R     MOV     DPTR,#arpPacket
+0063 120000      E     LCALL   ?C?PLDXDATA
+0066 E9                MOV     A,R1
+0067 2414              ADD     A,#014H
+0069 F9                MOV     R1,A
+006A EA                MOV     A,R2
+006B 3400              ADDC    A,#00H
+006D FA                MOV     R2,A
+006E 120000      E     LCALL   ?C?ILDPTR
+0071 FF                MOV     R7,A
+0072 AEF0              MOV     R6,B
+0074 EF                MOV     A,R7
+0075 6401              XRL     A,#01H
+0077 4E                ORL     A,R6
+0078 6003              JZ      $ + 5H
+007A 020000      R     LJMP    ?C0016
+                                           ; SOURCE LINE # 216
+007D 900000      R     MOV     DPTR,#arpPacket
+0080 120000      E     LCALL   ?C?PLDXDATA
+0083 120000      E     LCALL   _ReplyArpRequest
+0086 22                RET     
+                                           ; SOURCE LINE # 217
+0087         ?C0018:
+                                           ; SOURCE LINE # 218
+0087 020000      R     LJMP    ?C0016
+008A         ?C0017:
+008A 900000      R     MOV     DPTR,#eth
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 24  
+
+008D 120000      E     LCALL   ?C?PLDXDATA
+0090 E9                MOV     A,R1
+0091 240C              ADD     A,#0CH
+0093 F9                MOV     R1,A
+0094 EA                MOV     A,R2
+0095 3400              ADDC    A,#00H
+0097 FA                MOV     R2,A
+0098 120000      E     LCALL   ?C?ILDPTR
+009B FF                MOV     R7,A
+009C AEF0              MOV     R6,B
+009E EF                MOV     A,R7
+009F 6400              XRL     A,#00H
+00A1 7003              JNZ     ?C0057
+00A3 EE                MOV     A,R6
+00A4 6408              XRL     A,#08H
+00A6         ?C0057:
+00A6 6003              JZ      $ + 5H
+00A8 020000      R     LJMP    ?C0016
+                                           ; SOURCE LINE # 222
+00AB 900000      R     MOV     DPTR,#packet
+00AE 120000      E     LCALL   ?C?PLDXDATA
+00B1 900000      R     MOV     DPTR,#ip
+00B4 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 225
+00B7 900000      R     MOV     DPTR,#ip
+00BA 120000      E     LCALL   ?C?PLDXDATA
+00BD E9                MOV     A,R1
+00BE 2417              ADD     A,#017H
+00C0 F9                MOV     R1,A
+00C1 EA                MOV     A,R2
+00C2 3400              ADDC    A,#00H
+00C4 FA                MOV     R2,A
+00C5 120000      E     LCALL   ?C?CLDPTR
+00C8 FF                MOV     R7,A
+00C9 EF                MOV     A,R7
+00CA 6401              XRL     A,#01H
+00CC 7034              JNZ     ?C0022
+                                           ; SOURCE LINE # 226
+00CE 900000      R     MOV     DPTR,#packet
+00D1 120000      E     LCALL   ?C?PLDXDATA
+00D4 900000      R     MOV     DPTR,#ping
+00D7 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 227
+00DA 900000      R     MOV     DPTR,#ping
+00DD 120000      E     LCALL   ?C?PLDXDATA
+00E0 E9                MOV     A,R1
+00E1 2422              ADD     A,#022H
+00E3 F9                MOV     R1,A
+00E4 EA                MOV     A,R2
+00E5 3400              ADDC    A,#00H
+00E7 FA                MOV     R2,A
+00E8 120000      E     LCALL   ?C?CLDPTR
+00EB FF                MOV     R7,A
+00EC EF                MOV     A,R7
+00ED B40812            CJNE    A,#08H,?C0023
+                                           ; SOURCE LINE # 229
+00F0 900000      R     MOV     DPTR,#packet
+00F3 120000      E     LCALL   ?C?PLDXDATA
+00F6 900000      R     MOV     DPTR,#len
+00F9 E0                MOVX    A,@DPTR
+00FA FC                MOV     R4,A
+00FB A3                INC     DPTR
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 25  
+
+00FC E0                MOVX    A,@DPTR
+00FD FD                MOV     R5,A
+00FE 120000      E     LCALL   _PingReply
+0101 22                RET     
+                                           ; SOURCE LINE # 230
+0102         ?C0023:
+                                           ; SOURCE LINE # 235
+0102         ?C0025:
+0102         ?C0024:
+                                           ; SOURCE LINE # 236
+0102         ?C0022:
+                                           ; SOURCE LINE # 238
+0102 900000      R     MOV     DPTR,#ip
+0105 120000      E     LCALL   ?C?PLDXDATA
+0108 E9                MOV     A,R1
+0109 2417              ADD     A,#017H
+010B F9                MOV     R1,A
+010C EA                MOV     A,R2
+010D 3400              ADDC    A,#00H
+010F FA                MOV     R2,A
+0110 120000      E     LCALL   ?C?CLDPTR
+0113 FF                MOV     R7,A
+0114 EF                MOV     A,R7
+0115 6406              XRL     A,#06H
+0117 6003              JZ      $ + 5H
+0119 020000      R     LJMP    ?C0026
+                                           ; SOURCE LINE # 239
+011C 900000      R     MOV     DPTR,#packet
+011F 120000      E     LCALL   ?C?PLDXDATA
+0122 900000      R     MOV     DPTR,#Pack
+0125 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 243
+0128 900000      R     MOV     DPTR,#Pack
+012B 120000      E     LCALL   ?C?PLDXDATA
+012E E9                MOV     A,R1
+012F 242F              ADD     A,#02FH
+0131 F9                MOV     R1,A
+0132 EA                MOV     A,R2
+0133 3400              ADDC    A,#00H
+0135 FA                MOV     R2,A
+0136 120000      E     LCALL   ?C?CLDPTR
+0139 FF                MOV     R7,A
+013A EF                MOV     A,R7
+013B C3                CLR     C
+013C 13                RRC     A
+013D FF                MOV     R7,A
+013E EF                MOV     A,R7
+013F 20E003            JB      ACC.0,$ + 6H
+0142 020000      R     LJMP    ?C0027
+                                           ; SOURCE LINE # 244
+0145 900000      R     MOV     DPTR,#Pack
+0148 120000      E     LCALL   ?C?PLDXDATA
+014B E9                MOV     A,R1
+014C 2424              ADD     A,#024H
+014E F9                MOV     R1,A
+014F EA                MOV     A,R2
+0150 3400              ADDC    A,#00H
+0152 FA                MOV     R2,A
+0153 120000      E     LCALL   ?C?ILDPTR
+0156 FF                MOV     R7,A
+0157 AEF0              MOV     R6,B
+0159 900000      E     MOV     DPTR,#WClientPort
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 26  
+
+015C E0                MOVX    A,@DPTR
+015D FC                MOV     R4,A
+015E A3                INC     DPTR
+015F E0                MOVX    A,@DPTR
+0160 FD                MOV     R5,A
+0161 EF                MOV     A,R7
+0162 6D                XRL     A,R5
+0163 7002              JNZ     ?C0058
+0165 EE                MOV     A,R6
+0166 6C                XRL     A,R4
+0167         ?C0058:
+0167 7053              JNZ     ?C0028
+0169 900000      R     MOV     DPTR,#Pack
+016C 120000      E     LCALL   ?C?PLDXDATA
+016F E9                MOV     A,R1
+0170 242F              ADD     A,#02FH
+0172 F9                MOV     R1,A
+0173 EA                MOV     A,R2
+0174 3400              ADDC    A,#00H
+0176 FA                MOV     R2,A
+0177 120000      E     LCALL   ?C?CLDPTR
+017A FF                MOV     R7,A
+017B EF                MOV     A,R7
+017C C4                SWAP    A
+017D 540F              ANL     A,#0FH
+017F FF                MOV     R7,A
+0180 EF                MOV     A,R7
+0181 30E038            JNB     ACC.0,?C0028
+                                           ; SOURCE LINE # 249
+0184 D200        E     SETB    WebClientQueryRTS
+                                           ; SOURCE LINE # 250
+0186 900000      R     MOV     DPTR,#Pack
+0189 120000      E     LCALL   ?C?PLDXDATA
+018C C003              PUSH    AR3
+018E C002              PUSH    AR2
+0190 C001              PUSH    AR1
+0192 900000      R     MOV     DPTR,#Pack
+0195 120000      E     LCALL   ?C?PLDXDATA
+0198 E9                MOV     A,R1
+0199 2410              ADD     A,#010H
+019B F9                MOV     R1,A
+019C EA                MOV     A,R2
+019D 3400              ADDC    A,#00H
+019F FA                MOV     R2,A
+01A0 120000      E     LCALL   ?C?ILDPTR
+01A3 FF                MOV     R7,A
+01A4 AEF0              MOV     R6,B
+01A6 EF                MOV     A,R7
+01A7 240E              ADD     A,#0EH
+01A9 FD                MOV     R5,A
+01AA EE                MOV     A,R6
+01AB 3400              ADDC    A,#00H
+01AD FC                MOV     R4,A
+01AE C200        R     CLR     ?_ackTcp?BIT
+01B0 D001              POP     AR1
+01B2 D002              POP     AR2
+01B4 D003              POP     AR3
+01B6 120000      R     LCALL   _ackTcp
+01B9 22                RET     
+                                           ; SOURCE LINE # 251
+01BA 8073              SJMP    ?C0027
+01BC         ?C0028:
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 27  
+
+01BC 900000      R     MOV     DPTR,#Pack
+01BF 120000      E     LCALL   ?C?PLDXDATA
+01C2 E9                MOV     A,R1
+01C3 2424              ADD     A,#024H
+01C5 F9                MOV     R1,A
+01C6 EA                MOV     A,R2
+01C7 3400              ADDC    A,#00H
+01C9 FA                MOV     R2,A
+01CA 120000      E     LCALL   ?C?ILDPTR
+01CD FF                MOV     R7,A
+01CE AEF0              MOV     R6,B
+01D0 900000      E     MOV     DPTR,#WWWPort
+01D3 E0                MOVX    A,@DPTR
+01D4 FC                MOV     R4,A
+01D5 A3                INC     DPTR
+01D6 E0                MOVX    A,@DPTR
+01D7 FD                MOV     R5,A
+01D8 EF                MOV     A,R7
+01D9 6D                XRL     A,R5
+01DA 7002              JNZ     ?C0059
+01DC EE                MOV     A,R6
+01DD 6C                XRL     A,R4
+01DE         ?C0059:
+01DE 704F              JNZ     ?C0027
+01E0 900000      R     MOV     DPTR,#Pack
+01E3 120000      E     LCALL   ?C?PLDXDATA
+01E6 E9                MOV     A,R1
+01E7 242F              ADD     A,#02FH
+01E9 F9                MOV     R1,A
+01EA EA                MOV     A,R2
+01EB 3400              ADDC    A,#00H
+01ED FA                MOV     R2,A
+01EE 120000      E     LCALL   ?C?CLDPTR
+01F1 FF                MOV     R7,A
+01F2 EF                MOV     A,R7
+01F3 C4                SWAP    A
+01F4 540F              ANL     A,#0FH
+01F6 FF                MOV     R7,A
+01F7 EF                MOV     A,R7
+01F8 20E034            JB      ACC.0,?C0027
+                                           ; SOURCE LINE # 255
+01FB 900000      R     MOV     DPTR,#Pack
+01FE 120000      E     LCALL   ?C?PLDXDATA
+0201 C003              PUSH    AR3
+0203 C002              PUSH    AR2
+0205 C001              PUSH    AR1
+0207 900000      R     MOV     DPTR,#Pack
+020A 120000      E     LCALL   ?C?PLDXDATA
+020D E9                MOV     A,R1
+020E 2410              ADD     A,#010H
+0210 F9                MOV     R1,A
+0211 EA                MOV     A,R2
+0212 3400              ADDC    A,#00H
+0214 FA                MOV     R2,A
+0215 120000      E     LCALL   ?C?ILDPTR
+0218 FF                MOV     R7,A
+0219 AEF0              MOV     R6,B
+021B EF                MOV     A,R7
+021C 240E              ADD     A,#0EH
+021E FD                MOV     R5,A
+021F EE                MOV     A,R6
+0220 3400              ADDC    A,#00H
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 28  
+
+0222 FC                MOV     R4,A
+0223 D200        R     SETB    ?_ackTcp?BIT
+0225 D001              POP     AR1
+0227 D002              POP     AR2
+0229 D003              POP     AR3
+022B 120000      R     LCALL   _ackTcp
+022E 22                RET     
+                                           ; SOURCE LINE # 256
+022F         ?C0030:
+022F         ?C0029:
+                                           ; SOURCE LINE # 257
+022F         ?C0027:
+                                           ; SOURCE LINE # 262
+022F 900000      R     MOV     DPTR,#Pack
+0232 120000      E     LCALL   ?C?PLDXDATA
+0235 E9                MOV     A,R1
+0236 242F              ADD     A,#02FH
+0238 F9                MOV     R1,A
+0239 EA                MOV     A,R2
+023A 3400              ADDC    A,#00H
+023C FA                MOV     R2,A
+023D 120000      E     LCALL   ?C?CLDPTR
+0240 FF                MOV     R7,A
+0241 EF                MOV     A,R7
+0242 13                RRC     A
+0243 13                RRC     A
+0244 13                RRC     A
+0245 541F              ANL     A,#01FH
+0247 FF                MOV     R7,A
+0248 EF                MOV     A,R7
+0249 30E06D            JNB     ACC.0,?C0031
+024C 900000      R     MOV     DPTR,#Pack
+024F 120000      E     LCALL   ?C?PLDXDATA
+0252 E9                MOV     A,R1
+0253 242F              ADD     A,#02FH
+0255 F9                MOV     R1,A
+0256 EA                MOV     A,R2
+0257 3400              ADDC    A,#00H
+0259 FA                MOV     R2,A
+025A 120000      E     LCALL   ?C?CLDPTR
+025D FF                MOV     R7,A
+025E EF                MOV     A,R7
+025F C4                SWAP    A
+0260 540F              ANL     A,#0FH
+0262 FF                MOV     R7,A
+0263 EF                MOV     A,R7
+0264 30E052            JNB     ACC.0,?C0031
+                                           ; SOURCE LINE # 263
+0267 900000      R     MOV     DPTR,#Pack
+026A 120000      E     LCALL   ?C?PLDXDATA
+026D E9                MOV     A,R1
+026E 2424              ADD     A,#024H
+0270 F9                MOV     R1,A
+0271 EA                MOV     A,R2
+0272 3400              ADDC    A,#00H
+0274 FA                MOV     R2,A
+0275 120000      E     LCALL   ?C?ILDPTR
+0278 FF                MOV     R7,A
+0279 AEF0              MOV     R6,B
+027B 900000      E     MOV     DPTR,#WWWPort
+027E E0                MOVX    A,@DPTR
+027F FC                MOV     R4,A
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 29  
+
+0280 A3                INC     DPTR
+0281 E0                MOVX    A,@DPTR
+0282 FD                MOV     R5,A
+0283 EF                MOV     A,R7
+0284 B50508            CJNE    A,AR5,?C0032
+0287 EE                MOV     A,R6
+0288 B50404            CJNE    A,AR4,?C0032
+                                           ; SOURCE LINE # 265
+028B D200        E     SETB    WebServerGETRecd
+                                           ; SOURCE LINE # 266
+028D 802A              SJMP    ?C0031
+028F         ?C0032:
+028F 900000      R     MOV     DPTR,#Pack
+0292 120000      E     LCALL   ?C?PLDXDATA
+0295 E9                MOV     A,R1
+0296 2424              ADD     A,#024H
+0298 F9                MOV     R1,A
+0299 EA                MOV     A,R2
+029A 3400              ADDC    A,#00H
+029C FA                MOV     R2,A
+029D 120000      E     LCALL   ?C?ILDPTR
+02A0 FF                MOV     R7,A
+02A1 AEF0              MOV     R6,B
+02A3 900000      E     MOV     DPTR,#WClientPort
+02A6 E0                MOVX    A,@DPTR
+02A7 FC                MOV     R4,A
+02A8 A3                INC     DPTR
+02A9 E0                MOVX    A,@DPTR
+02AA FD                MOV     R5,A
+02AB EF                MOV     A,R7
+02AC B5050A            CJNE    A,AR5,?C0031
+02AF EE                MOV     A,R6
+02B0 B50406            CJNE    A,AR4,?C0031
+                                           ; SOURCE LINE # 268
+02B3 900000      E     MOV     DPTR,#WebClientDataRecd
+02B6 7401              MOV     A,#01H
+02B8 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 269
+02B9         ?C0034:
+02B9         ?C0033:
+                                           ; SOURCE LINE # 270
+02B9         ?C0031:
+                                           ; SOURCE LINE # 274
+02B9 900000      R     MOV     DPTR,#Pack
+02BC 120000      E     LCALL   ?C?PLDXDATA
+02BF E9                MOV     A,R1
+02C0 242F              ADD     A,#02FH
+02C2 F9                MOV     R1,A
+02C3 EA                MOV     A,R2
+02C4 3400              ADDC    A,#00H
+02C6 FA                MOV     R2,A
+02C7 120000      E     LCALL   ?C?CLDPTR
+02CA FF                MOV     R7,A
+02CB EF                MOV     A,R7
+02CC 20E01C            JB      ACC.0,?C0036
+02CF 900000      R     MOV     DPTR,#Pack
+02D2 120000      E     LCALL   ?C?PLDXDATA
+02D5 E9                MOV     A,R1
+02D6 242F              ADD     A,#02FH
+02D8 F9                MOV     R1,A
+02D9 EA                MOV     A,R2
+02DA 3400              ADDC    A,#00H
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 30  
+
+02DC FA                MOV     R2,A
+02DD 120000      E     LCALL   ?C?CLDPTR
+02E0 FF                MOV     R7,A
+02E1 EF                MOV     A,R7
+02E2 13                RRC     A
+02E3 13                RRC     A
+02E4 543F              ANL     A,#03FH
+02E6 FF                MOV     R7,A
+02E7 EF                MOV     A,R7
+02E8 30E034            JNB     ACC.0,?C0026
+02EB         ?C0036:
+                                           ; SOURCE LINE # 275
+02EB 900000      R     MOV     DPTR,#Pack
+02EE 120000      E     LCALL   ?C?PLDXDATA
+02F1 C003              PUSH    AR3
+02F3 C002              PUSH    AR2
+02F5 C001              PUSH    AR1
+02F7 900000      R     MOV     DPTR,#Pack
+02FA 120000      E     LCALL   ?C?PLDXDATA
+02FD E9                MOV     A,R1
+02FE 2410              ADD     A,#010H
+0300 F9                MOV     R1,A
+0301 EA                MOV     A,R2
+0302 3400              ADDC    A,#00H
+0304 FA                MOV     R2,A
+0305 120000      E     LCALL   ?C?ILDPTR
+0308 FF                MOV     R7,A
+0309 AEF0              MOV     R6,B
+030B EF                MOV     A,R7
+030C 240E              ADD     A,#0EH
+030E FD                MOV     R5,A
+030F EE                MOV     A,R6
+0310 3400              ADDC    A,#00H
+0312 FC                MOV     R4,A
+0313 C200        R     CLR     ?_ackTcp?BIT
+0315 D001              POP     AR1
+0317 D002              POP     AR2
+0319 D003              POP     AR3
+031B 120000      R     LCALL   _ackTcp
+031E 22                RET     
+                                           ; SOURCE LINE # 276
+031F         ?C0035:
+                                           ; SOURCE LINE # 278
+031F         ?C0026:
+                                           ; SOURCE LINE # 283
+031F 900000      R     MOV     DPTR,#ip
+0322 120000      E     LCALL   ?C?PLDXDATA
+0325 E9                MOV     A,R1
+0326 2417              ADD     A,#017H
+0328 F9                MOV     R1,A
+0329 EA                MOV     A,R2
+032A 3400              ADDC    A,#00H
+032C FA                MOV     R2,A
+032D 120000      E     LCALL   ?C?CLDPTR
+0330 FF                MOV     R7,A
+0331 7E00              MOV     R6,#00H
+0333 900000      R     MOV     DPTR,#proto
+0336 E0                MOVX    A,@DPTR
+0337 FC                MOV     R4,A
+0338 A3                INC     DPTR
+0339 E0                MOVX    A,@DPTR
+033A FD                MOV     R5,A
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 31  
+
+033B EF                MOV     A,R7
+033C B50509            CJNE    A,AR5,?C0016
+033F EE                MOV     A,R6
+0340 B50405            CJNE    A,AR4,?C0016
+                                           ; SOURCE LINE # 285
+0343 7E00              MOV     R6,#00H
+0345 7F01              MOV     R7,#01H
+0347 22                RET     
+                                           ; SOURCE LINE # 286
+0348         ?C0037:
+                                           ; SOURCE LINE # 288
+0348         ?C0021:
+0348         ?C0020:
+                                           ; SOURCE LINE # 289
+0348         ?C0016:
+                                           ; SOURCE LINE # 291
+0348 E4                CLR     A
+0349 7E00              MOV     R6,#00H
+034B 7F00              MOV     R7,#00H
+                                           ; SOURCE LINE # 292
+034D         ?C0019:
+034D 22                RET     
+             ; FUNCTION _GetPacket (END)
+
+             ; FUNCTION _IPstack_Start (BEGIN)
+                                           ; SOURCE LINE # 314
+0000 900000      R     MOV     DPTR,#devMAC
+0003 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 315
+0006 900000      R     MOV     DPTR,#i
+0009 E4                CLR     A
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C E4                CLR     A
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 319
+000E 900000      R     MOV     DPTR,#devMAC
+0011 120000      E     LCALL   ?C?PLDXDATA
+0014 C003              PUSH    AR3
+0016 C002              PUSH    AR2
+0018 C001              PUSH    AR1
+001A 7B01              MOV     R3,#01H
+001C 7A00        E     MOV     R2,#HIGH deviceMAC
+001E 7900        E     MOV     R1,#LOW deviceMAC
+0020 A801              MOV     R0,AR1
+0022 AC02              MOV     R4,AR2
+0024 AD03              MOV     R5,AR3
+0026 D001              POP     AR1
+0028 D002              POP     AR2
+002A D003              POP     AR3
+002C 7E00              MOV     R6,#00H
+002E 7F06              MOV     R7,#06H
+0030 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 320
+0033 900000      R     MOV     DPTR,#devIP
+0036 120000      E     LCALL   ?C?PLDXDATA
+0039 C003              PUSH    AR3
+003B C002              PUSH    AR2
+003D C001              PUSH    AR1
+003F 7B01              MOV     R3,#01H
+0041 7A00        E     MOV     R2,#HIGH deviceIP
+0043 7900        E     MOV     R1,#LOW deviceIP
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 32  
+
+0045 A801              MOV     R0,AR1
+0047 AC02              MOV     R4,AR2
+0049 AD03              MOV     R5,AR3
+004B D001              POP     AR1
+004D D002              POP     AR2
+004F D003              POP     AR3
+0051 7E00              MOV     R6,#00H
+0053 7F04              MOV     R7,#04H
+0055 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 323
+0058 7B01              MOV     R3,#01H
+005A 7A00        E     MOV     R2,#HIGH deviceMAC
+005C 7900        E     MOV     R1,#LOW deviceMAC
+005E 120000      E     LCALL   _initMAC
+                                           ; SOURCE LINE # 326
+0061 120000      E     LCALL   IsLinkUp
+0064 EF                MOV     A,R7
+0065 7005              JNZ     ?C0038
+                                           ; SOURCE LINE # 327
+0067 7E00              MOV     R6,#00H
+0069 7F01              MOV     R7,#01H
+006B 22                RET     
+                                           ; SOURCE LINE # 328
+006C         ?C0038:
+                                           ; SOURCE LINE # 331
+006C 7B01              MOV     R3,#01H
+006E 7A00        E     MOV     R2,#HIGH routerIP
+0070 7900        E     MOV     R1,#LOW routerIP
+0072 120000      E     LCALL   _SendArpRequest
+                                           ; SOURCE LINE # 334
+0075 900000      R     MOV     DPTR,#i
+0078 E4                CLR     A
+0079 F0                MOVX    @DPTR,A
+007A A3                INC     DPTR
+007B E4                CLR     A
+007C F0                MOVX    @DPTR,A
+007D         ?C0040:
+007D 900000      R     MOV     DPTR,#i
+0080 E0                MOVX    A,@DPTR
+0081 FE                MOV     R6,A
+0082 A3                INC     DPTR
+0083 E0                MOVX    A,@DPTR
+0084 FF                MOV     R7,A
+0085 C3                CLR     C
+0086 EF                MOV     A,R7
+0087 94FF              SUBB    A,#0FFH
+0089 EE                MOV     A,R6
+008A 945F              SUBB    A,#05FH
+008C 4003              JC      $ + 5H
+008E 020000      R     LJMP    ?C0041
+                                           ; SOURCE LINE # 335
+0091 7B01              MOV     R3,#01H
+0093 7A00        R     MOV     R2,#HIGH arpPacket
+0095 7900        R     MOV     R1,#LOW arpPacket
+0097 7D2A              MOV     R5,#02AH
+0099 7C00              MOV     R4,#00H
+009B 120000      E     LCALL   _MACRead
+009E EF                MOV     A,R7
+009F 4E                ORL     A,R6
+00A0 6073              JZ      ?C0042
+                                           ; SOURCE LINE # 336
+00A2 900000      R     MOV     DPTR,#arpPacket+0CH
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 33  
+
+00A5 E0                MOVX    A,@DPTR
+00A6 FE                MOV     R6,A
+00A7 A3                INC     DPTR
+00A8 E0                MOVX    A,@DPTR
+00A9 FF                MOV     R7,A
+00AA EF                MOV     A,R7
+00AB 6406              XRL     A,#06H
+00AD 7003              JNZ     ?C0063
+00AF EE                MOV     A,R6
+00B0 6408              XRL     A,#08H
+00B2         ?C0063:
+00B2 7061              JNZ     ?C0042
+00B4 900000      R     MOV     DPTR,#arpPacket+014H
+00B7 E0                MOVX    A,@DPTR
+00B8 FE                MOV     R6,A
+00B9 A3                INC     DPTR
+00BA E0                MOVX    A,@DPTR
+00BB FF                MOV     R7,A
+00BC EF                MOV     A,R7
+00BD 6402              XRL     A,#02H
+00BF 4E                ORL     A,R6
+00C0 7053              JNZ     ?C0042
+00C2 7B01              MOV     R3,#01H
+00C4 7A00        E     MOV     R2,#HIGH routerIP
+00C6 7900        E     MOV     R1,#LOW routerIP
+00C8 C003              PUSH    AR3
+00CA C002              PUSH    AR2
+00CC C001              PUSH    AR1
+00CE 7B01              MOV     R3,#01H
+00D0 7A00        R     MOV     R2,#HIGH arpPacket+01CH
+00D2 7900        R     MOV     R1,#LOW arpPacket+01CH
+00D4 A801              MOV     R0,AR1
+00D6 AC02              MOV     R4,AR2
+00D8 AD03              MOV     R5,AR3
+00DA D001              POP     AR1
+00DC D002              POP     AR2
+00DE D003              POP     AR3
+00E0 7E00              MOV     R6,#00H
+00E2 7F04              MOV     R7,#04H
+00E4 120000      E     LCALL   ?C?MEMCMPAMD
+00E7 EF                MOV     A,R7
+00E8 702B              JNZ     ?C0042
+                                           ; SOURCE LINE # 338
+00EA 7B01              MOV     R3,#01H
+00EC 7A00        R     MOV     R2,#HIGH arpPacket+016H
+00EE 7900        R     MOV     R1,#LOW arpPacket+016H
+00F0 C003              PUSH    AR3
+00F2 C002              PUSH    AR2
+00F4 C001              PUSH    AR1
+00F6 7B01              MOV     R3,#01H
+00F8 7A00        E     MOV     R2,#HIGH routerMAC
+00FA 7900        E     MOV     R1,#LOW routerMAC
+00FC A801              MOV     R0,AR1
+00FE AC02              MOV     R4,AR2
+0100 AD03              MOV     R5,AR3
+0102 D001              POP     AR1
+0104 D002              POP     AR2
+0106 D003              POP     AR3
+0108 7E00              MOV     R6,#00H
+010A 7F06              MOV     R7,#06H
+010C 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 339
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 34  
+
+010F E4                CLR     A
+0110 7E00              MOV     R6,#00H
+0112 7F00              MOV     R7,#00H
+0114 22                RET     
+                                           ; SOURCE LINE # 340
+0115         ?C0044:
+                                           ; SOURCE LINE # 341
+0115         ?C0043:
+                                           ; SOURCE LINE # 342
+0115         ?C0042:
+0115 900000      R     MOV     DPTR,#i
+0118 E4                CLR     A
+0119 75F001            MOV     B,#01H
+011C 120000      E     LCALL   ?C?IILDX
+011F 020000      R     LJMP    ?C0040
+0122         ?C0041:
+                                           ; SOURCE LINE # 343
+0122 7E00              MOV     R6,#00H
+0124 7F01              MOV     R7,#01H
+                                           ; SOURCE LINE # 344
+0126         ?C0039:
+0126 22                RET     
+             ; FUNCTION _IPstack_Start (END)
+
+             ; FUNCTION IPstackIdle (BEGIN)
+                                           ; SOURCE LINE # 359
+                                           ; SOURCE LINE # 361
+0000 7B01              MOV     R3,#01H
+0002 7A00        R     MOV     R2,#HIGH packet
+0004 7900        R     MOV     R1,#LOW packet
+0006 900000      R     MOV     DPTR,#TCPacket
+0009 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 364
+000C 120000      E     LCALL   IsLinkUp
+000F EF                MOV     A,R7
+0010 7003              JNZ     $ + 5H
+0012 020000      R     LJMP    ?C0046
+                                           ; SOURCE LINE # 366
+0015         ?C0045:
+                                           ; SOURCE LINE # 369
+0015 7B01              MOV     R3,#01H
+0017 7A00        R     MOV     R2,#HIGH packet
+0019 7900        R     MOV     R1,#LOW packet
+001B 7F00              MOV     R7,#00H
+001D 7E00              MOV     R6,#00H
+001F 120000      R     LCALL   _GetPacket
+                                           ; SOURCE LINE # 371
+0022 30000B            JNB     WebServerGETRecd,?C0047
+                                           ; SOURCE LINE # 372
+0025 900000      R     MOV     DPTR,#TCPacket
+0028 120000      E     LCALL   ?C?PLDXDATA
+002B 120000      E     LCALL   _WebServer_ProcessRequest
+                                           ; SOURCE LINE # 373
+002E C200        E     CLR     WebServerGETRecd
+                                           ; SOURCE LINE # 374
+0030         ?C0047:
+                                           ; SOURCE LINE # 376
+0030 300023            JNB     WebClientQueryRTS,?C0048
+                                           ; SOURCE LINE # 378
+0033 7B01              MOV     R3,#01H
+0035 7A00        E     MOV     R2,#HIGH WebClientQuery
+0037 7900        E     MOV     R1,#LOW WebClientQuery
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 35  
+
+0039 C003              PUSH    AR3
+003B C002              PUSH    AR2
+003D C001              PUSH    AR1
+003F 900000      R     MOV     DPTR,#TCPacket
+0042 120000      E     LCALL   ?C?PLDXDATA
+0045 900000      E     MOV     DPTR,#?_WebClient_BrowseURL?BYTE+03H
+0048 120000      E     LCALL   ?C?PSTXDATA
+004B D001              POP     AR1
+004D D002              POP     AR2
+004F D003              POP     AR3
+0051 120000      E     LCALL   _WebClient_BrowseURL
+                                           ; SOURCE LINE # 379
+0054 C200        E     CLR     WebClientQueryRTS
+                                           ; SOURCE LINE # 380
+0056         ?C0048:
+                                           ; SOURCE LINE # 382
+0056 900000      E     MOV     DPTR,#WebClientDataRecd
+0059 E0                MOVX    A,@DPTR
+005A FF                MOV     R7,A
+005B EF                MOV     A,R7
+005C 6401              XRL     A,#01H
+005E 6003              JZ      $ + 5H
+0060 020000      R     LJMP    ?C0046
+                                           ; SOURCE LINE # 384
+0063 900000      R     MOV     DPTR,#TCPacket
+0066 120000      E     LCALL   ?C?PLDXDATA
+0069 120000      E     LCALL   _WebClient_ProcessReply
+                                           ; SOURCE LINE # 387
+006C 900000      R     MOV     DPTR,#TCPacket
+006F 120000      E     LCALL   ?C?PLDXDATA
+0072 C003              PUSH    AR3
+0074 C002              PUSH    AR2
+0076 C001              PUSH    AR1
+0078 900000      R     MOV     DPTR,#TCPacket
+007B 120000      E     LCALL   ?C?PLDXDATA
+007E E9                MOV     A,R1
+007F 2410              ADD     A,#010H
+0081 F9                MOV     R1,A
+0082 EA                MOV     A,R2
+0083 3400              ADDC    A,#00H
+0085 FA                MOV     R2,A
+0086 120000      E     LCALL   ?C?ILDPTR
+0089 FF                MOV     R7,A
+008A AEF0              MOV     R6,B
+008C EF                MOV     A,R7
+008D 240E              ADD     A,#0EH
+008F FD                MOV     R5,A
+0090 EE                MOV     A,R6
+0091 3400              ADDC    A,#00H
+0093 FC                MOV     R4,A
+0094 C200        R     CLR     ?_ackTcp?BIT
+0096 D001              POP     AR1
+0098 D002              POP     AR2
+009A D003              POP     AR3
+009C 120000      R     LCALL   _ackTcp
+                                           ; SOURCE LINE # 391
+009F 900000      R     MOV     DPTR,#TCPacket
+00A2 120000      E     LCALL   ?C?PLDXDATA
+00A5 E9                MOV     A,R1
+00A6 242F              ADD     A,#02FH
+00A8 F9                MOV     R1,A
+00A9 EA                MOV     A,R2
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 36  
+
+00AA 3400              ADDC    A,#00H
+00AC FA                MOV     R2,A
+00AD 120000      E     LCALL   ?C?CLDPTR
+00B0 FF                MOV     R7,A
+00B1 EF                MOV     A,R7
+00B2 4401              ORL     A,#01H
+00B4 FF                MOV     R7,A
+00B5 EF                MOV     A,R7
+00B6 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 393
+00B9 900000      R     MOV     DPTR,#TCPacket
+00BC 120000      E     LCALL   ?C?PLDXDATA
+00BF E9                MOV     A,R1
+00C0 2418              ADD     A,#018H
+00C2 F9                MOV     R1,A
+00C3 EA                MOV     A,R2
+00C4 3400              ADDC    A,#00H
+00C6 FA                MOV     R2,A
+00C7 E4                CLR     A
+00C8 75F000            MOV     B,#00H
+00CB 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 394
+00CE 900000      R     MOV     DPTR,#TCPacket
+00D1 120000      E     LCALL   ?C?PLDXDATA
+00D4 E9                MOV     A,R1
+00D5 2432              ADD     A,#032H
+00D7 F9                MOV     R1,A
+00D8 EA                MOV     A,R2
+00D9 3400              ADDC    A,#00H
+00DB FA                MOV     R2,A
+00DC E4                CLR     A
+00DD 75F000            MOV     B,#00H
+00E0 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 396
+00E3 900000      R     MOV     DPTR,#TCPacket
+00E6 120000      E     LCALL   ?C?PLDXDATA
+00E9 E9                MOV     A,R1
+00EA 240E              ADD     A,#0EH
+00EC F9                MOV     R1,A
+00ED EA                MOV     A,R2
+00EE 3400              ADDC    A,#00H
+00F0 FA                MOV     R2,A
+00F1 900000      R     MOV     DPTR,#?_checksum?BYTE+05H
+00F4 E4                CLR     A
+00F5 F0                MOVX    @DPTR,A
+00F6 7D14              MOV     R5,#014H
+00F8 7C00              MOV     R4,#00H
+00FA 120000      R     LCALL   _checksum
+00FD 900000      R     MOV     DPTR,#TCPacket
+0100 120000      E     LCALL   ?C?PLDXDATA
+0103 E9                MOV     A,R1
+0104 2418              ADD     A,#018H
+0106 F9                MOV     R1,A
+0107 EA                MOV     A,R2
+0108 3400              ADDC    A,#00H
+010A FA                MOV     R2,A
+010B EE                MOV     A,R6
+010C 8FF0              MOV     B,R7
+010E 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 397
+0111 900000      R     MOV     DPTR,#TCPacket
+0114 120000      E     LCALL   ?C?PLDXDATA
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 37  
+
+0117 E9                MOV     A,R1
+0118 241A              ADD     A,#01AH
+011A F9                MOV     R1,A
+011B EA                MOV     A,R2
+011C 3400              ADDC    A,#00H
+011E FA                MOV     R2,A
+011F 900000      R     MOV     DPTR,#?_checksum?BYTE+05H
+0122 7402              MOV     A,#02H
+0124 F0                MOVX    @DPTR,A
+0125 7D1C              MOV     R5,#01CH
+0127 7C00              MOV     R4,#00H
+0129 120000      R     LCALL   _checksum
+012C 900000      R     MOV     DPTR,#TCPacket
+012F 120000      E     LCALL   ?C?PLDXDATA
+0132 E9                MOV     A,R1
+0133 2432              ADD     A,#032H
+0135 F9                MOV     R1,A
+0136 EA                MOV     A,R2
+0137 3400              ADDC    A,#00H
+0139 FA                MOV     R2,A
+013A EE                MOV     A,R6
+013B 8FF0              MOV     B,R7
+013D 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 399
+0140 7B01              MOV     R3,#01H
+0142 7A00        R     MOV     R2,#HIGH packet
+0144 7900        R     MOV     R1,#LOW packet
+0146 7D36              MOV     R5,#036H
+0148 7C00              MOV     R4,#00H
+014A 120000      E     LCALL   _MACWrite
+                                           ; SOURCE LINE # 402
+014D 900000      E     MOV     DPTR,#WebClientDataRecd
+0150 7402              MOV     A,#02H
+0152 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 403
+0153         ?C0049:
+                                           ; SOURCE LINE # 404
+0153         ?C0046:
+0153 22                RET     
+             ; FUNCTION IPstackIdle (END)
+
+             ; FUNCTION _ackTcp (BEGIN)
+                                           ; SOURCE LINE # 422
+0000 900000      R     MOV     DPTR,#tcp
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#len
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 425
+000E 900000      R     MOV     DPTR,#dlength
+0011 E4                CLR     A
+0012 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 429
+0013 900000      R     MOV     DPTR,#tcp
+0016 120000      E     LCALL   ?C?PLDXDATA
+0019 E9                MOV     A,R1
+001A 2432              ADD     A,#032H
+001C F9                MOV     R1,A
+001D EA                MOV     A,R2
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 38  
+
+001E 3400              ADDC    A,#00H
+0020 FA                MOV     R2,A
+0021 E4                CLR     A
+0022 75F000            MOV     B,#00H
+0025 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 430
+0028 900000      R     MOV     DPTR,#tcp
+002B 120000      E     LCALL   ?C?PLDXDATA
+002E E9                MOV     A,R1
+002F 2418              ADD     A,#018H
+0031 F9                MOV     R1,A
+0032 EA                MOV     A,R2
+0033 3400              ADDC    A,#00H
+0035 FA                MOV     R2,A
+0036 E4                CLR     A
+0037 75F000            MOV     B,#00H
+003A 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 433
+003D 900000      R     MOV     DPTR,#tcp
+0040 120000      E     LCALL   ?C?PLDXDATA
+0043 E9                MOV     A,R1
+0044 2406              ADD     A,#06H
+0046 F9                MOV     R1,A
+0047 EA                MOV     A,R2
+0048 3400              ADDC    A,#00H
+004A FA                MOV     R2,A
+004B C003              PUSH    AR3
+004D C002              PUSH    AR2
+004F C001              PUSH    AR1
+0051 900000      R     MOV     DPTR,#tcp
+0054 120000      E     LCALL   ?C?PLDXDATA
+0057 A801              MOV     R0,AR1
+0059 AC02              MOV     R4,AR2
+005B AD03              MOV     R5,AR3
+005D D001              POP     AR1
+005F D002              POP     AR2
+0061 D003              POP     AR3
+0063 7E00              MOV     R6,#00H
+0065 7F06              MOV     R7,#06H
+0067 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 434
+006A 7B01              MOV     R3,#01H
+006C 7A00        E     MOV     R2,#HIGH deviceMAC
+006E 7900        E     MOV     R1,#LOW deviceMAC
+0070 C003              PUSH    AR3
+0072 C002              PUSH    AR2
+0074 C001              PUSH    AR1
+0076 900000      R     MOV     DPTR,#tcp
+0079 120000      E     LCALL   ?C?PLDXDATA
+007C E9                MOV     A,R1
+007D 2406              ADD     A,#06H
+007F F9                MOV     R1,A
+0080 EA                MOV     A,R2
+0081 3400              ADDC    A,#00H
+0083 FA                MOV     R2,A
+0084 A801              MOV     R0,AR1
+0086 AC02              MOV     R4,AR2
+0088 AD03              MOV     R5,AR3
+008A D001              POP     AR1
+008C D002              POP     AR2
+008E D003              POP     AR3
+0090 7E00              MOV     R6,#00H
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 39  
+
+0092 7F06              MOV     R7,#06H
+0094 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 437
+0097 900000      R     MOV     DPTR,#tcp
+009A 120000      E     LCALL   ?C?PLDXDATA
+009D E9                MOV     A,R1
+009E 241A              ADD     A,#01AH
+00A0 F9                MOV     R1,A
+00A1 EA                MOV     A,R2
+00A2 3400              ADDC    A,#00H
+00A4 FA                MOV     R2,A
+00A5 C003              PUSH    AR3
+00A7 C002              PUSH    AR2
+00A9 C001              PUSH    AR1
+00AB 900000      R     MOV     DPTR,#tcp
+00AE 120000      E     LCALL   ?C?PLDXDATA
+00B1 E9                MOV     A,R1
+00B2 241E              ADD     A,#01EH
+00B4 F9                MOV     R1,A
+00B5 EA                MOV     A,R2
+00B6 3400              ADDC    A,#00H
+00B8 FA                MOV     R2,A
+00B9 A801              MOV     R0,AR1
+00BB AC02              MOV     R4,AR2
+00BD AD03              MOV     R5,AR3
+00BF D001              POP     AR1
+00C1 D002              POP     AR2
+00C3 D003              POP     AR3
+00C5 7E00              MOV     R6,#00H
+00C7 7F04              MOV     R7,#04H
+00C9 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 438
+00CC 7B01              MOV     R3,#01H
+00CE 7A00        E     MOV     R2,#HIGH deviceIP
+00D0 7900        E     MOV     R1,#LOW deviceIP
+00D2 C003              PUSH    AR3
+00D4 C002              PUSH    AR2
+00D6 C001              PUSH    AR1
+00D8 900000      R     MOV     DPTR,#tcp
+00DB 120000      E     LCALL   ?C?PLDXDATA
+00DE E9                MOV     A,R1
+00DF 241A              ADD     A,#01AH
+00E1 F9                MOV     R1,A
+00E2 EA                MOV     A,R2
+00E3 3400              ADDC    A,#00H
+00E5 FA                MOV     R2,A
+00E6 A801              MOV     R0,AR1
+00E8 AC02              MOV     R4,AR2
+00EA AD03              MOV     R5,AR3
+00EC D001              POP     AR1
+00EE D002              POP     AR2
+00F0 D003              POP     AR3
+00F2 7E00              MOV     R6,#00H
+00F4 7F04              MOV     R7,#04H
+00F6 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 441
+00F9 900000      R     MOV     DPTR,#tcp
+00FC 120000      E     LCALL   ?C?PLDXDATA
+00FF E9                MOV     A,R1
+0100 2424              ADD     A,#024H
+0102 F9                MOV     R1,A
+0103 EA                MOV     A,R2
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 40  
+
+0104 3400              ADDC    A,#00H
+0106 FA                MOV     R2,A
+0107 120000      E     LCALL   ?C?ILDPTR
+010A FF                MOV     R7,A
+010B AEF0              MOV     R6,B
+010D 900000      R     MOV     DPTR,#destPort
+0110 EE                MOV     A,R6
+0111 F0                MOVX    @DPTR,A
+0112 A3                INC     DPTR
+0113 EF                MOV     A,R7
+0114 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 442
+0115 900000      R     MOV     DPTR,#tcp
+0118 120000      E     LCALL   ?C?PLDXDATA
+011B E9                MOV     A,R1
+011C 2422              ADD     A,#022H
+011E F9                MOV     R1,A
+011F EA                MOV     A,R2
+0120 3400              ADDC    A,#00H
+0122 FA                MOV     R2,A
+0123 120000      E     LCALL   ?C?ILDPTR
+0126 FF                MOV     R7,A
+0127 AEF0              MOV     R6,B
+0129 900000      R     MOV     DPTR,#tcp
+012C 120000      E     LCALL   ?C?PLDXDATA
+012F E9                MOV     A,R1
+0130 2424              ADD     A,#024H
+0132 F9                MOV     R1,A
+0133 EA                MOV     A,R2
+0134 3400              ADDC    A,#00H
+0136 FA                MOV     R2,A
+0137 EE                MOV     A,R6
+0138 8FF0              MOV     B,R7
+013A 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 443
+013D 900000      R     MOV     DPTR,#destPort
+0140 E0                MOVX    A,@DPTR
+0141 FE                MOV     R6,A
+0142 A3                INC     DPTR
+0143 E0                MOVX    A,@DPTR
+0144 FF                MOV     R7,A
+0145 900000      R     MOV     DPTR,#tcp
+0148 120000      E     LCALL   ?C?PLDXDATA
+014B E9                MOV     A,R1
+014C 2422              ADD     A,#022H
+014E F9                MOV     R1,A
+014F EA                MOV     A,R2
+0150 3400              ADDC    A,#00H
+0152 FA                MOV     R2,A
+0153 EE                MOV     A,R6
+0154 8FF0              MOV     B,R7
+0156 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 445
+0159 900000      R     MOV     DPTR,#tcp
+015C 120000      E     LCALL   ?C?PLDXDATA
+015F E9                MOV     A,R1
+0160 242A              ADD     A,#02AH
+0162 F9                MOV     R1,A
+0163 EA                MOV     A,R2
+0164 3400              ADDC    A,#00H
+0166 FA                MOV     R2,A
+0167 C003              PUSH    AR3
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 41  
+
+0169 C002              PUSH    AR2
+016B C001              PUSH    AR1
+016D 7B01              MOV     R3,#01H
+016F 7A00        R     MOV     R2,#HIGH ack
+0171 7900        R     MOV     R1,#LOW ack
+0173 A801              MOV     R0,AR1
+0175 AC02              MOV     R4,AR2
+0177 AD03              MOV     R5,AR3
+0179 D001              POP     AR1
+017B D002              POP     AR2
+017D D003              POP     AR3
+017F 7E00              MOV     R6,#00H
+0181 7F04              MOV     R7,#04H
+0183 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 446
+0186 900000      R     MOV     DPTR,#tcp
+0189 120000      E     LCALL   ?C?PLDXDATA
+018C E9                MOV     A,R1
+018D 2426              ADD     A,#026H
+018F F9                MOV     R1,A
+0190 EA                MOV     A,R2
+0191 3400              ADDC    A,#00H
+0193 FA                MOV     R2,A
+0194 C003              PUSH    AR3
+0196 C002              PUSH    AR2
+0198 C001              PUSH    AR1
+019A 900000      R     MOV     DPTR,#tcp
+019D 120000      E     LCALL   ?C?PLDXDATA
+01A0 E9                MOV     A,R1
+01A1 242A              ADD     A,#02AH
+01A3 F9                MOV     R1,A
+01A4 EA                MOV     A,R2
+01A5 3400              ADDC    A,#00H
+01A7 FA                MOV     R2,A
+01A8 A801              MOV     R0,AR1
+01AA AC02              MOV     R4,AR2
+01AC AD03              MOV     R5,AR3
+01AE D001              POP     AR1
+01B0 D002              POP     AR2
+01B2 D003              POP     AR3
+01B4 7E00              MOV     R6,#00H
+01B6 7F04              MOV     R7,#04H
+01B8 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 447
+01BB 7B01              MOV     R3,#01H
+01BD 7A00        R     MOV     R2,#HIGH ack
+01BF 7900        R     MOV     R1,#LOW ack
+01C1 C003              PUSH    AR3
+01C3 C002              PUSH    AR2
+01C5 C001              PUSH    AR1
+01C7 900000      R     MOV     DPTR,#tcp
+01CA 120000      E     LCALL   ?C?PLDXDATA
+01CD E9                MOV     A,R1
+01CE 2426              ADD     A,#026H
+01D0 F9                MOV     R1,A
+01D1 EA                MOV     A,R2
+01D2 3400              ADDC    A,#00H
+01D4 FA                MOV     R2,A
+01D5 A801              MOV     R0,AR1
+01D7 AC02              MOV     R4,AR2
+01D9 AD03              MOV     R5,AR3
+01DB D001              POP     AR1
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 42  
+
+01DD D002              POP     AR2
+01DF D003              POP     AR3
+01E1 7E00              MOV     R6,#00H
+01E3 7F04              MOV     R7,#04H
+01E5 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 451
+01E8 900000      R     MOV     DPTR,#tcp
+01EB 120000      E     LCALL   ?C?PLDXDATA
+01EE E9                MOV     A,R1
+01EF 242F              ADD     A,#02FH
+01F1 F9                MOV     R1,A
+01F2 EA                MOV     A,R2
+01F3 3400              ADDC    A,#00H
+01F5 FA                MOV     R2,A
+01F6 120000      E     LCALL   ?C?CLDPTR
+01F9 FF                MOV     R7,A
+01FA EF                MOV     A,R7
+01FB C3                CLR     C
+01FC 13                RRC     A
+01FD FF                MOV     R7,A
+01FE EF                MOV     A,R7
+01FF 20E016            JB      ACC.0,?C0051
+0202 900000      R     MOV     DPTR,#tcp
+0205 120000      E     LCALL   ?C?PLDXDATA
+0208 E9                MOV     A,R1
+0209 242F              ADD     A,#02FH
+020B F9                MOV     R1,A
+020C EA                MOV     A,R2
+020D 3400              ADDC    A,#00H
+020F FA                MOV     R2,A
+0210 120000      E     LCALL   ?C?CLDPTR
+0213 FF                MOV     R7,A
+0214 EF                MOV     A,R7
+0215 30E017            JNB     ACC.0,?C0050
+0218         ?C0051:
+                                           ; SOURCE LINE # 453
+0218 900000      R     MOV     DPTR,#tcp
+021B 120000      E     LCALL   ?C?PLDXDATA
+021E E9                MOV     A,R1
+021F 242A              ADD     A,#02AH
+0221 F9                MOV     R1,A
+0222 EA                MOV     A,R2
+0223 3400              ADDC    A,#00H
+0225 FA                MOV     R2,A
+0226 7D01              MOV     R5,#01H
+0228 7C00              MOV     R4,#00H
+022A 120000      R     LCALL   _add32
+                                           ; SOURCE LINE # 454
+022D 8021              SJMP    ?C0052
+022F         ?C0050:
+                                           ; SOURCE LINE # 455
+022F 900000      R     MOV     DPTR,#tcp
+0232 120000      E     LCALL   ?C?PLDXDATA
+0235 E9                MOV     A,R1
+0236 242A              ADD     A,#02AH
+0238 F9                MOV     R1,A
+0239 EA                MOV     A,R2
+023A 3400              ADDC    A,#00H
+023C FA                MOV     R2,A
+023D 900000      R     MOV     DPTR,#len
+0240 E0                MOVX    A,@DPTR
+0241 FE                MOV     R6,A
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 43  
+
+0242 A3                INC     DPTR
+0243 E0                MOVX    A,@DPTR
+0244 FF                MOV     R7,A
+0245 EF                MOV     A,R7
+0246 24CA              ADD     A,#0CAH
+0248 FD                MOV     R5,A
+0249 EE                MOV     A,R6
+024A 34FF              ADDC    A,#0FFH
+024C FC                MOV     R4,A
+024D 120000      R     LCALL   _add32
+                                           ; SOURCE LINE # 456
+0250         ?C0052:
+                                           ; SOURCE LINE # 462
+0250 200003      R     JB      syn_val,$ + 6H
+0253 020000      R     LJMP    ?C0053
+                                           ; SOURCE LINE # 463
+0256 A200        R     MOV     C,syn_val
+0258 E4                CLR     A
+0259 33                RLC     A
+025A FF                MOV     R7,A
+025B EF                MOV     A,R7
+025C 5401              ANL     A,#01H
+025E FF                MOV     R7,A
+025F EF                MOV     A,R7
+0260 25E0              ADD     A,ACC
+0262 FF                MOV     R7,A
+0263 900000      R     MOV     DPTR,#tcp
+0266 120000      E     LCALL   ?C?PLDXDATA
+0269 E9                MOV     A,R1
+026A 242F              ADD     A,#02FH
+026C F9                MOV     R1,A
+026D EA                MOV     A,R2
+026E 3400              ADDC    A,#00H
+0270 FA                MOV     R2,A
+0271 120000      E     LCALL   ?C?CLDPTR
+0274 FE                MOV     R6,A
+0275 EE                MOV     A,R6
+0276 54FD              ANL     A,#0FDH
+0278 FE                MOV     R6,A
+0279 EE                MOV     A,R6
+027A 4F                ORL     A,R7
+027B FF                MOV     R7,A
+027C EF                MOV     A,R7
+027D 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 464
+0280 900000      R     MOV     DPTR,#tcp
+0283 120000      E     LCALL   ?C?PLDXDATA
+0286 E9                MOV     A,R1
+0287 2434              ADD     A,#034H
+0289 F9                MOV     R1,A
+028A EA                MOV     A,R2
+028B 3400              ADDC    A,#00H
+028D FA                MOV     R2,A
+028E 900000      R     MOV     DPTR,#datptr
+0291 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 465
+0294 900000      R     MOV     DPTR,#datptr
+0297 E4                CLR     A
+0298 75F001            MOV     B,#01H
+029B 120000      E     LCALL   ?C?PLDIXDATA
+029E 7402              MOV     A,#02H
+02A0 120000      E     LCALL   ?C?CSTPTR
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 44  
+
+                                           ; SOURCE LINE # 466
+02A3 900000      R     MOV     DPTR,#datptr
+02A6 E4                CLR     A
+02A7 75F001            MOV     B,#01H
+02AA 120000      E     LCALL   ?C?PLDIXDATA
+02AD 7404              MOV     A,#04H
+02AF 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 467
+02B2 900000      R     MOV     DPTR,#datptr
+02B5 E4                CLR     A
+02B6 75F001            MOV     B,#01H
+02B9 120000      E     LCALL   ?C?PLDIXDATA
+02BC 7405              MOV     A,#05H
+02BE 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 468
+02C1 900000      R     MOV     DPTR,#datptr
+02C4 E4                CLR     A
+02C5 75F001            MOV     B,#01H
+02C8 120000      E     LCALL   ?C?PLDIXDATA
+02CB 7480              MOV     A,#080H
+02CD 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 469
+02D0 900000      R     MOV     DPTR,#tcp
+02D3 120000      E     LCALL   ?C?PLDXDATA
+02D6 E9                MOV     A,R1
+02D7 242E              ADD     A,#02EH
+02D9 F9                MOV     R1,A
+02DA EA                MOV     A,R2
+02DB 3400              ADDC    A,#00H
+02DD FA                MOV     R2,A
+02DE 120000      E     LCALL   ?C?CLDPTR
+02E1 FF                MOV     R7,A
+02E2 EF                MOV     A,R7
+02E3 540F              ANL     A,#0FH
+02E5 FF                MOV     R7,A
+02E6 EF                MOV     A,R7
+02E7 4460              ORL     A,#060H
+02E9 FF                MOV     R7,A
+02EA EF                MOV     A,R7
+02EB 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 470
+02EE 900000      R     MOV     DPTR,#dlength
+02F1 E0                MOVX    A,@DPTR
+02F2 2404              ADD     A,#04H
+02F4 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 471
+02F5 801E              SJMP    ?C0054
+02F7         ?C0053:
+                                           ; SOURCE LINE # 472
+02F7 900000      R     MOV     DPTR,#tcp
+02FA 120000      E     LCALL   ?C?PLDXDATA
+02FD E9                MOV     A,R1
+02FE 242E              ADD     A,#02EH
+0300 F9                MOV     R1,A
+0301 EA                MOV     A,R2
+0302 3400              ADDC    A,#00H
+0304 FA                MOV     R2,A
+0305 120000      E     LCALL   ?C?CLDPTR
+0308 FF                MOV     R7,A
+0309 EF                MOV     A,R7
+030A 540F              ANL     A,#0FH
+030C FF                MOV     R7,A
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 45  
+
+030D EF                MOV     A,R7
+030E 4450              ORL     A,#050H
+0310 FF                MOV     R7,A
+0311 EF                MOV     A,R7
+0312 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 473
+0315         ?C0054:
+                                           ; SOURCE LINE # 475
+0315 900000      R     MOV     DPTR,#tcp
+0318 120000      E     LCALL   ?C?PLDXDATA
+031B E9                MOV     A,R1
+031C 242F              ADD     A,#02FH
+031E F9                MOV     R1,A
+031F EA                MOV     A,R2
+0320 3400              ADDC    A,#00H
+0322 FA                MOV     R2,A
+0323 120000      E     LCALL   ?C?CLDPTR
+0326 FF                MOV     R7,A
+0327 EF                MOV     A,R7
+0328 4410              ORL     A,#010H
+032A FF                MOV     R7,A
+032B EF                MOV     A,R7
+032C 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 476
+032F 900000      R     MOV     DPTR,#tcp
+0332 120000      E     LCALL   ?C?PLDXDATA
+0335 E9                MOV     A,R1
+0336 242F              ADD     A,#02FH
+0338 F9                MOV     R1,A
+0339 EA                MOV     A,R2
+033A 3400              ADDC    A,#00H
+033C FA                MOV     R2,A
+033D 120000      E     LCALL   ?C?CLDPTR
+0340 FF                MOV     R7,A
+0341 EF                MOV     A,R7
+0342 54F7              ANL     A,#0F7H
+0344 FF                MOV     R7,A
+0345 EF                MOV     A,R7
+0346 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 477
+0349 900000      R     MOV     DPTR,#tcp
+034C 120000      E     LCALL   ?C?PLDXDATA
+034F E9                MOV     A,R1
+0350 242F              ADD     A,#02FH
+0352 F9                MOV     R1,A
+0353 EA                MOV     A,R2
+0354 3400              ADDC    A,#00H
+0356 FA                MOV     R2,A
+0357 120000      E     LCALL   ?C?CLDPTR
+035A FF                MOV     R7,A
+035B EF                MOV     A,R7
+035C 54FE              ANL     A,#0FEH
+035E FF                MOV     R7,A
+035F EF                MOV     A,R7
+0360 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 478
+0363 900000      R     MOV     DPTR,#tcp
+0366 120000      E     LCALL   ?C?PLDXDATA
+0369 E9                MOV     A,R1
+036A 242F              ADD     A,#02FH
+036C F9                MOV     R1,A
+036D EA                MOV     A,R2
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 46  
+
+036E 3400              ADDC    A,#00H
+0370 FA                MOV     R2,A
+0371 120000      E     LCALL   ?C?CLDPTR
+0374 FF                MOV     R7,A
+0375 EF                MOV     A,R7
+0376 54FB              ANL     A,#0FBH
+0378 FF                MOV     R7,A
+0379 EF                MOV     A,R7
+037A 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 481
+037D 900000      R     MOV     DPTR,#dlength
+0380 E0                MOVX    A,@DPTR
+0381 FF                MOV     R7,A
+0382 EF                MOV     A,R7
+0383 2436              ADD     A,#036H
+0385 FF                MOV     R7,A
+0386 7E00              MOV     R6,#00H
+0388 900000      R     MOV     DPTR,#len
+038B EE                MOV     A,R6
+038C F0                MOVX    @DPTR,A
+038D A3                INC     DPTR
+038E EF                MOV     A,R7
+038F F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 484
+0390 900000      R     MOV     DPTR,#len
+0393 E0                MOVX    A,@DPTR
+0394 FE                MOV     R6,A
+0395 A3                INC     DPTR
+0396 E0                MOVX    A,@DPTR
+0397 FF                MOV     R7,A
+0398 EF                MOV     A,R7
+0399 24F2              ADD     A,#0F2H
+039B FF                MOV     R7,A
+039C EE                MOV     A,R6
+039D 34FF              ADDC    A,#0FFH
+039F FE                MOV     R6,A
+03A0 900000      R     MOV     DPTR,#tcp
+03A3 120000      E     LCALL   ?C?PLDXDATA
+03A6 E9                MOV     A,R1
+03A7 2410              ADD     A,#010H
+03A9 F9                MOV     R1,A
+03AA EA                MOV     A,R2
+03AB 3400              ADDC    A,#00H
+03AD FA                MOV     R2,A
+03AE EE                MOV     A,R6
+03AF 8FF0              MOV     B,R7
+03B1 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 487
+03B4 900000      R     MOV     DPTR,#tcp
+03B7 120000      E     LCALL   ?C?PLDXDATA
+03BA E9                MOV     A,R1
+03BB 240E              ADD     A,#0EH
+03BD F9                MOV     R1,A
+03BE EA                MOV     A,R2
+03BF 3400              ADDC    A,#00H
+03C1 FA                MOV     R2,A
+03C2 900000      R     MOV     DPTR,#?_checksum?BYTE+05H
+03C5 E4                CLR     A
+03C6 F0                MOVX    @DPTR,A
+03C7 7D14              MOV     R5,#014H
+03C9 7C00              MOV     R4,#00H
+03CB 120000      R     LCALL   _checksum
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 47  
+
+03CE 900000      R     MOV     DPTR,#tcp
+03D1 120000      E     LCALL   ?C?PLDXDATA
+03D4 E9                MOV     A,R1
+03D5 2418              ADD     A,#018H
+03D7 F9                MOV     R1,A
+03D8 EA                MOV     A,R2
+03D9 3400              ADDC    A,#00H
+03DB FA                MOV     R2,A
+03DC EE                MOV     A,R6
+03DD 8FF0              MOV     B,R7
+03DF 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 488
+03E2 900000      R     MOV     DPTR,#tcp
+03E5 120000      E     LCALL   ?C?PLDXDATA
+03E8 E9                MOV     A,R1
+03E9 241A              ADD     A,#01AH
+03EB F9                MOV     R1,A
+03EC EA                MOV     A,R2
+03ED 3400              ADDC    A,#00H
+03EF FA                MOV     R2,A
+03F0 900000      R     MOV     DPTR,#dlength
+03F3 E0                MOVX    A,@DPTR
+03F4 FF                MOV     R7,A
+03F5 EF                MOV     A,R7
+03F6 241C              ADD     A,#01CH
+03F8 FF                MOV     R7,A
+03F9 EF                MOV     A,R7
+03FA FD                MOV     R5,A
+03FB 7C00              MOV     R4,#00H
+03FD 900000      R     MOV     DPTR,#?_checksum?BYTE+05H
+0400 7402              MOV     A,#02H
+0402 F0                MOVX    @DPTR,A
+0403 120000      R     LCALL   _checksum
+0406 900000      R     MOV     DPTR,#tcp
+0409 120000      E     LCALL   ?C?PLDXDATA
+040C E9                MOV     A,R1
+040D 2432              ADD     A,#032H
+040F F9                MOV     R1,A
+0410 EA                MOV     A,R2
+0411 3400              ADDC    A,#00H
+0413 FA                MOV     R2,A
+0414 EE                MOV     A,R6
+0415 8FF0              MOV     B,R7
+0417 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 490
+041A 900000      R     MOV     DPTR,#tcp
+041D 120000      E     LCALL   ?C?PLDXDATA
+0420 900000      R     MOV     DPTR,#len
+0423 E0                MOVX    A,@DPTR
+0424 FC                MOV     R4,A
+0425 A3                INC     DPTR
+0426 E0                MOVX    A,@DPTR
+0427 FD                MOV     R5,A
+0428 120000      E     LCALL   _MACWrite
+042B 7E00              MOV     R6,#00H
+                                           ; SOURCE LINE # 491
+042D         ?C0055:
+042D 22                RET     
+             ; FUNCTION _ackTcp (END)
+
+
+
+C51 COMPILER V9.03   IPSTACK                                                               07/02/2012 19:51:15 PAGE 48  
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   3829    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =    409    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

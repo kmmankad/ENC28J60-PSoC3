@@ -1,0 +1,2238 @@
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 1   
+
+
+C51 COMPILER V9.03, COMPILATION OF MODULE ENC28J60
+OBJECT MODULE PLACED IN .\DP8051_Keil_903\Debug\enc28j60.obj
+COMPILER INVOKED BY: C:\Program Files (x86)\Cypress\PSoC Creator\2.1\PSoC Creator\import\keil\pk51\9.03\C51\BIN\c51.exe 
+                    -.\enc28j60.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\enc28j60.lst) CD DB NOIP OT(0,SIZE) INCDIR(Generate
+                    -d_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\enc28j60.obj)
+
+line level    source
+
+   1          /*
+   2           Network Stack for PSoC3-ENC28J60 hardware
+   3           -----------------------------------------
+   4           Title  : ENC28J60 driver function
+   5           Author : Kartik Mankad
+   6           Date : 30-06-12
+   7           This code is licensed as CC-BY-SA 3.0
+   8           Description : This file contains the underlying ENC28J60 driver.
+   9          */
+  10          
+  11          /* 
+  12           Basic ENC28J60 Driver Code for PSoC3
+  13           Author : Kartik Mankad
+  14           Date : 17-06-12
+  15           This code is licensed as CC-BY-SA 3.0
+  16           Description : This file contains the functions,structures and registers
+  17                         essential while dealing with the ENC28J60 chip.
+  18          */
+  19          #include "globals.h"
+  20          #include "enc28j60.h"
+  21          #include "spi.h"
+  22          
+  23          
+  24          /*
+  25          Declare structures of type TXSTATUS and RXSTATUS,which
+  26            will hold the status vectors.
+  27          */
+  28          TXSTATUS TxStatus;
+  29          RXSTATUS ptrRxStatus;
+  30          
+  31          /*Define the Private Functions*/
+  32          
+  33          static unsigned char ReadETHReg(unsigned char bytAddress);// read an ETH reg
+  34          static unsigned char ReadMacReg(unsigned char bytAddress);// read a MAC reg
+  35          static unsigned int ReadPhyReg(unsigned char);// read a PHY reg
+  36          static unsigned int ReadMacBuffer(unsigned char * ,unsigned int);//read the mac buffer (ptrBuffer, no. of 
+             -bytes)
+  37          static unsigned char WriteCtrReg(unsigned char,unsigned char);// write to a Control reg
+  38          static unsigned char WritePhyReg(unsigned char,unsigned int);// write to a Phy reg
+  39          static unsigned int WriteMacBuffer(unsigned char *,unsigned int);// write to the MAC buffer
+  40          static void ResetMac(void);//Reset the MAC.
+  41          static unsigned char SetBitField(unsigned char, unsigned char);//Set Bit Field in the register.
+  42          static unsigned char ClrBitField(unsigned char, unsigned char);//Clear Bit Fir
+  43          static void BankSel(unsigned char);
+  44          
+  45          /*Macro for Silicon Errata to do with Transmit Logic Reset.
+  46          Silicon Errata No.12 as per Latest Errata doc for ENC28J60
+  47          See http://ww1.microchip.com/downloads/en/DeviceDoc/80349c.pdf */
+  48          #define ERRATAFIX   SetBitField(ECON1, ECON1_TXRST);ClrBitField(ECON1, ECON1_TXRST);ClrBitField(EIR, EIR_T
+             -XERIF | EIR_TXIF)
+  49          
+  50          
+  51          unsigned char ReadChipRev(void){
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 2   
+
+  52   1          BankSel(3);
+  53   1          return(ReadETHReg(EREVID));
+  54   1      }
+  55          
+  56          void initMAC(unsigned char* deviceMAC){
+  57   1          /*Initialize the SPI Module*/
+  58   1          spiInit();        
+  59   1          
+  60   1          /*Execute a Soft Reset to the MAC*/
+  61   1          ResetMac();
+  62   1          
+  63   1          /*Setup the 8kb Memory space on the ENC28J60
+  64   1          by defining ERXST and ERXND*/
+  65   1          BankSel(0);//Select Bank 0
+  66   1          WriteCtrReg(ERXSTL,(unsigned char)( RXSTART & 0x00ff));    
+  67   1          WriteCtrReg(ERXSTH,(unsigned char)((RXSTART & 0xff00)>> 8));
+  68   1          WriteCtrReg(ERXNDL,(unsigned char)( RXEND   & 0x00ff));
+  69   1          WriteCtrReg(ERXNDH,(unsigned char)((RXEND   & 0xff00)>>8));
+  70   1      
+  71   1          /*Set RX Read pointer to start of RX Buffer*/
+  72   1          WriteCtrReg(ERXRDPTL, (unsigned char)( RXSTART & 0x00ff));
+  73   1          WriteCtrReg(ERXRDPTH, (unsigned char)((RXSTART & 0xff00)>> 8));
+  74   1              
+  75   1              /*Setup Transmit Buffer*/
+  76   1              WriteCtrReg(ETXSTL,(unsigned char)( TXSTART & 0x00ff));//Start of buffer
+  77   1              WriteCtrReg(ETXSTH,(unsigned char)((TXSTART & 0xff00)>>8));
+  78   1              /*End of buffer will depend on packets,so no point
+  79   1              hardcoding it*/
+  80   1      
+  81   1          /*Set the RX Filters*/
+  82   1          BankSel(1);//Select Bank 1
+  83   1          /*REGISTER 8-1: ERXFCON: RECEIVE FILTER CONTROL REGISTER
+  84   1          See Page 50 of the datasheet.*/
+  85   1          WriteCtrReg(ERXFCON,( ERXFCON_UCEN + ERXFCON_CRCEN + ERXFCON_PMEN));
+  86   1              
+  87   1              //---Setup packet filter---
+  88   1              //This part is taken from Guido Socher's AVR enc28j60 driver.Great Work,that.
+  89   1              //For broadcast packets we allow only ARP packtets
+  90   1              //All other packets should be unicast only for our mac (MAADR)
+  91   1              //The pattern to match on is therefore
+  92   1              //Type     ETH.DST
+  93   1              //ARP      BROADCAST
+  94   1              //06 08 -- ff ff ff ff ff ff -> ip checksum for theses bytes=f7f9
+  95   1              //in binary these poitions are:11 0000 0011 1111
+  96   1              //This is hex 303F->EPMM0=0x3f,EPMM1=0x30
+  97   1              WriteCtrReg(EPMM0, 0x3f);
+  98   1              WriteCtrReg(EPMM1, 0x30);
+  99   1              WriteCtrReg(EPMCSL,0x39);
+ 100   1              WriteCtrReg(EPMCSH,0xf7);
+ 101   1      
+ 102   1      
+ 103   1          /*Initialize the MAC Registers*/
+ 104   1          BankSel(2); // select bank 2
+ 105   1          SetBitField(MACON1, MACON1_MARXEN);// Enable reception of frames
+ 106   1          WriteCtrReg(MACON3, MACON3_FRMLNEN +    // Type / len field will be checked
+ 107   1                              MACON3_TXCRCEN +    // MAC will append valid CRC
+ 108   1                              MACON3_PADCFG0);    // All small packets will be padded
+ 109   1           
+ 110   1          WriteCtrReg(MAMXFLL, (unsigned char)( MAXFRAMELEN & 0x00ff));// set max frame len
+ 111   1          WriteCtrReg(MAMXFLH, (unsigned char)((MAXFRAMELEN & 0xff00)>>8));
+ 112   1          WriteCtrReg(MABBIPG, 0x12);// back to back interpacket gap. set as per data sheet
+ 113   1          WriteCtrReg(MAIPGL , 0x12);// non back to back interpacket gap. set as per data sheet
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 3   
+
+ 114   1          WriteCtrReg(MAIPGH , 0x0C);
+ 115   1      
+ 116   1        
+ 117   1          /*Assign the MAC Address to the chip.*/
+ 118   1          BankSel(3);//Select Bank 3.              
+ 119   1          WriteCtrReg(MAADR1,deviceMAC[0]);   
+ 120   1          WriteCtrReg(MAADR2,deviceMAC[1]);  
+ 121   1          WriteCtrReg(MAADR3,deviceMAC[2]);
+ 122   1          WriteCtrReg(MAADR4,deviceMAC[3]);
+ 123   1          WriteCtrReg(MAADR5,deviceMAC[4]);
+ 124   1          WriteCtrReg(MAADR6,deviceMAC[5]);
+ 125   1      
+ 126   1          /*Initialise the PHY registers
+ 127   1          REGISTER 11-3: PHCON1: PHY CONTROL REGISTER 1
+ 128   1          See Page 65 of the Datasheet.*/
+ 129   1          WritePhyReg(PHCON1, 0x000);
+ 130   1          /*
+ 131   1          "If using half duplex, the host controller may wish to set
+ 132   1          the PHCON2.HDLDIS bit to prevent automatic
+ 133   1          loopback of the data which is transmitted."
+ 134   1          See Section 6.6 on Page 40 */
+ 135   1          WritePhyReg(PHCON2, PHCON2_HDLDIS);
+ 136   1          
+ 137   1          /*Enable the chip for reception of packets*/
+ 138   1          WriteCtrReg(ECON1,  ECON1_RXEN);     
+ 139   1      }
+ 140          
+ 141          unsigned char MACWrite(unsigned char* packet, unsigned int len){
+ 142   1      
+ 143   1          unsigned char  bytControl=0x00;
+ 144   1        
+ 145   1          /*Configure TX Buffer Pointers*/
+ 146   1          BankSel(0);// select bank 0
+ 147   1          
+ 148   1          // write ptr to start of Tx packet
+ 149   1          WriteCtrReg(ETXSTL,(unsigned char)( TXSTART & 0x00ff));        
+ 150   1          WriteCtrReg(ETXSTH,(unsigned char)((TXSTART & 0xff00)>>8));
+ 151   1          
+ 152   1              /*Set write buffer pointer to point to start of Tx Buffer*/
+ 153   1              WriteCtrReg(EWRPTL,(unsigned char)( TXSTART & 0x00ff));        
+ 154   1              WriteCtrReg(EWRPTH,(unsigned char)((TXSTART & 0xff00)>>8));
+ 155   1              
+ 156   1          
+ 157   1          /*Write the Per Packet Control Byte
+ 158   1          See FIGURE 7-1: FORMAT FOR PER PACKET CONTROL BYTES
+ 159   1          on Page 41 of the datasheet */
+ 160   1          WriteMacBuffer(&bytControl,1);
+ 161   1            
+ 162   1          /*Write the packet into the ENC's buffer*/
+ 163   1              WriteMacBuffer(packet, len);  
+ 164   1          
+ 165   1              /*Tell MAC when the end of the packet is*/
+ 166   1              WriteCtrReg(ETXNDL, (unsigned char)( (len+TXSTART+1) & 0x00ff));       
+ 167   1              WriteCtrReg(ETXNDH, (unsigned char)(((len+TXSTART+1) & 0xff00)>>8));
+ 168   1      
+ 169   1          /*We would like to enable Interrupts on Packet TX complete.*/
+ 170   1          ClrBitField(EIR,EIR_TXIF);
+ 171   1          SetBitField(EIE, EIE_TXIE |EIE_INTIE);
+ 172   1          
+ 173   1          /*Macro for Silicon Errata to do with Transmit Logic Reset.
+ 174   1          Silicon Errata No.12 as per Latest Errata doc for ENC28J60
+ 175   1          See http://ww1.microchip.com/downloads/en/DeviceDoc/80349c.pdf */
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 4   
+
+ 176   1          ERRATAFIX;    
+ 177   1          
+ 178   1          /*Send that Packet!*/
+ 179   1          SetBitField(ECON1, ECON1_TXRTS);
+ 180   1          
+ 181   1          /*Wait for the Chip to finish the TX,and
+ 182   1            read the TX interrrupt bit to check the same.*/
+ 183   1          do{}while (!(ReadETHReg(EIR) & (EIR_TXIF)));             // kill some time. Note: Nice place to block?
+             -             // kill some time. Note: Nice place to block?
+ 184   1      
+ 185   1          /*Clear TXRTS,since the packet has been TX'd.*/
+ 186   1          ClrBitField(ECON1, ECON1_TXRTS);
+ 187   1        
+ 188   1          /*We will now attempt to read the TX Status Vectors.
+ 189   1          See TABLE 7-1: TRANSMIT STATUS VECTORS on Page 43 of the datasheet.*/
+ 190   1          BankSel(0);
+ 191   1          
+ 192   1          /*Because,that control byte.*/
+ 193   1          len++;
+ 194   1          
+ 195   1          /*Configure the buffer read ptr to read status structure*/
+ 196   1          WriteCtrReg(ERDPTL, (unsigned char)( len & 0x00ff));       
+ 197   1          WriteCtrReg(ERDPTH, (unsigned char)((len & 0xff00)>>8));
+ 198   1          
+ 199   1          /*Read In the TX Status Vectors*/
+ 200   1          /*Note: Use these for debugging.Really useful.*/
+ 201   1          ReadMacBuffer(&TxStatus.v[0],7);
+ 202   1      
+ 203   1          /*Read TX status vectors to see if TX was interrupted.*/
+ 204   1          if (ReadETHReg(ESTAT) & ESTAT_TXABRT){
+ 205   2              if (TxStatus.bits.LateCollision){
+ 206   3                  ClrBitField(ECON1, ECON1_TXRTS);//Toggle the TXRTS
+ 207   3                  SetBitField(ECON1, ECON1_TXRTS);
+ 208   3                  ClrBitField(ESTAT,ESTAT_TXABRT | ESTAT_LATECOL);//Clear the Late Collision Bit.
+ 209   3              }
+ 210   2          ClrBitField(EIR, EIR_TXERIF | EIR_TXIF);//Clear the Interrupt Flags.
+ 211   2          ClrBitField(ESTAT,ESTAT_TXABRT);//Clear the Abort Flag.
+ 212   2          return FALSE;//Report a Failed Packet TX.
+ 213   2        }else{
+ 214   2          return TRUE;//Packet Sent Okay! :-)
+ 215   2        }
+ 216   1         return TRUE;
+ 217   1      }
+ 218          
+ 219          unsigned int MACRead(unsigned char* packet, unsigned int maxLen){
+ 220   1              volatile unsigned int pckLen;
+ 221   1              static unsigned int nextpckptr = RXSTART;
+ 222   1          
+ 223   1          /*Read EPKTCNT to see if we have any packets in.*/
+ 224   1          BankSel(1);//Select Bank 1.
+ 225   1          if(ReadETHReg(EPKTCNT) == 0){
+ 226   2              return 0;//Report that No Proper Packets RX'd.
+ 227   2          }
+ 228   1              
+ 229   1          /*Setup memory pointers to Read in this RX'd packet.*/
+ 230   1          BankSel(0);
+ 231   1          WriteCtrReg(ERDPTL,(unsigned char)( nextpckptr & 0x00ff));
+ 232   1          WriteCtrReg(ERDPTH,(unsigned char)((nextpckptr & 0xff00)>>8));
+ 233   1          
+ 234   1          /*Read in the Next Packet Pointer,and the following 32bit Status Vector.
+ 235   1          See FIGURE 7-3: SAMPLE RECEIVE PACKET LAYOUT on Page 45 of the datasheet.*/
+ 236   1          ReadMacBuffer((unsigned char*)&ptrRxStatus.v[0],6);
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 5   
+
+ 237   1          
+ 238   1          /*Because,Little Endian.*/
+ 239   1          nextpckptr = CYSWAP_ENDIAN16(ptrRxStatus.bits.NextPacket);
+ 240   1          
+ 241   1          /*Compute actual length of the RX'd Packet.*/
+ 242   1          pckLen=CYSWAP_ENDIAN16(ptrRxStatus.bits.ByteCount) - 4; //We take away 4 as that is the CRC
+ 243   1          
+ 244   1              if( pckLen > (maxLen-1) ){
+ 245   2              pckLen = maxLen;
+ 246   2              }
+ 247   1              
+ 248   1          /*Read the packet only if it was RX'd Okay.
+ 249   1          We should be checking other flags too,like Length Out of Range,
+ 250   1          but that one doesnt seem reliable.
+ 251   1          We need more work and testing here.*/
+ 252   1          if(ptrRxStatus.bits.RxOk==0x01){
+ 253   2              ReadMacBuffer(packet,pckLen);//Read packet into buffer.
+ 254   2          }
+ 255   1      
+ 256   1          /*Ensure that ERXRDPT is Always ODD! Else Buffer gets corrupted.
+ 257   1          See No.5 in the Silicon Errata*/                                      
+ 258   1          BankSel(0);
+ 259   1          if ( ((nextpckptr - 1) < RXSTART) || ((nextpckptr-1) > RXEND) ) {
+ 260   2              /*Free up memory in that 8kb buffer by adjusting the RX Read pointer,
+ 261   2              since we are done with the packet.*/
+ 262   2              WriteCtrReg(ERXRDPTL, (RXEND & 0x00ff));
+ 263   2              WriteCtrReg(ERXRDPTH, ((RXEND & 0xff00) >> 8));
+ 264   2          }else{
+ 265   2              WriteCtrReg(ERXRDPTL, (( nextpckptr - 1 ) & 0x00ff ));
+ 266   2              WriteCtrReg(ERXRDPTH, ((( nextpckptr - 1 ) & 0xff00 ) >> 8 ));
+ 267   2          }
+ 268   1        /*To signal that we are done with the packet,decrement EPKTCNT*/
+ 269   1        SetBitField(ECON2, ECON2_PKTDEC);
+ 270   1        
+ 271   1        /*Return the length of the packet RX'd*/
+ 272   1        return pckLen;
+ 273   1      }
+ 274          
+ 275          /*------------------------Private Functions-----------------------------*/
+ 276          
+ 277          /*******************************************************************************
+ 278          * Function Name: ReadETHReg
+ 279          ********************************************************************************
+ 280          * Summary:
+ 281          *   Reads an ETH Register.Assumes that the correct bank is already selected.
+ 282          *
+ 283          * Parameters:
+ 284          *   bytAddress - Address of the Register to be Read.
+ 285          *
+ 286          * Returns:
+ 287          *   Data in the Register,as an unsigned char.
+ 288          *******************************************************************************/
+ 289          static unsigned char ReadETHReg(unsigned char bytAddress){
+ 290   1          /*Define the datahold for incoming Register Data.*/
+ 291   1          unsigned char bytData;
+ 292   1      
+ 293   1          SPI_SEL(TRUE);//Activate CS(Pulled Low.)
+ 294   1          
+ 295   1          spiTxBuffer(&bytAddress,1);//Write the OpCode
+ 296   1          spiRxBuffer(&bytData, 1);//Read the Data
+ 297   1          
+ 298   1          SPI_SEL(FALSE);//Deactivate CS(Pulled High.)
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 6   
+
+ 299   1        
+ 300   1        /*Return the data fetched.*/
+ 301   1          return bytData;
+ 302   1      }
+ 303          
+ 304          /*******************************************************************************
+ 305          * Function Name: ReadMacReg
+ 306          ********************************************************************************
+ 307          * Summary:
+ 308          *   Reads a MAC Register.Assumes that the correct bank is already selected.
+ 309          *
+ 310          * Parameters:
+ 311          *   bytAddress - Address of the Register to be Read.
+ 312          *
+ 313          * Returns:
+ 314          *   Data in the Register,as an unsigned char.
+ 315          *******************************************************************************/
+ 316          static unsigned char ReadMacReg(unsigned char bytAddress){
+ 317   1          /*Define the datahold for incoming Register Data.*/
+ 318   1          unsigned char bytData;
+ 319   1          
+ 320   1          SPI_SEL(TRUE);//Activate CS(Pulled Low.)
+ 321   1          
+ 322   1          spiTxBuffer(&bytAddress,1);//Write the OpCode.
+ 323   1          spiRxBuffer(&bytData, 1);//Read in the Dummy Byte.
+ 324   1          spiRxBuffer(&bytData, 1);//Read the Actual Value.
+ 325   1          
+ 326   1          SPI_SEL(FALSE);//Deactivate CS(Pulled High.)
+ 327   1      
+ 328   1          return bytData;
+ 329   1      }
+ 330          
+ 331          /*******************************************************************************
+ 332          * Function Name: WritePhyReg
+ 333          ********************************************************************************
+ 334          * Summary:
+ 335          *   Writes to a PHY Reg,following the Indirect Writing sequence detailed in 
+ 336          *   Section 3.3.2 on Page 21 of the datasheet.
+ 337          *
+ 338          * Parameters:
+ 339          *   bytAddress - Address of the Register to be Read.
+ 340          *
+ 341          * Returns:
+ 342          *   TRUE  - Write executed.
+ 343          *   FALSE - Invalid Address.
+ 344          *******************************************************************************/
+ 345          static unsigned char WritePhyReg(unsigned char address, unsigned int datapayload){ 
+ 346   1          if (address > 0x14){
+ 347   2              return FALSE;
+ 348   2          }   
+ 349   1          BankSel(2);
+ 350   1          
+ 351   1          /*Write the address of the PHY register we wish to write to.*/
+ 352   1          WriteCtrReg(MIREGADR,address);
+ 353   1          
+ 354   1          /*Write the lower byte of the Payload to write.*/
+ 355   1          WriteCtrReg(MIWRL,(unsigned char)datapayload); 
+ 356   1          
+ 357   1          /*Write the higher byte of the Payload to write.*/
+ 358   1          WriteCtrReg(MIWRH,((unsigned char)(datapayload >>8)));
+ 359   1          
+ 360   1          return TRUE;
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 7   
+
+ 361   1      }
+ 362          
+ 363          /*******************************************************************************
+ 364          * Function Name: ReadPhyReg
+ 365          ********************************************************************************
+ 366          * Summary:
+ 367          *   Reads from a PHY Reg,following the indirect reading sequence detailed in 
+ 368          *   Section 3.3.1 on Page 21 of the datasheet.
+ 369          *
+ 370          * Parameters:
+ 371          *   address - Address of the Register to be Read.
+ 372          *
+ 373          * Returns:
+ 374          *   TRUE  - Write executed.
+ 375          *   FALSE - Invalid Address.
+ 376          *******************************************************************************/
+ 377          static unsigned int ReadPhyReg(unsigned char address){
+ 378   1          volatile unsigned int uiData;
+ 379   1          volatile unsigned char bytStat;
+ 380   1      
+ 381   1          BankSel(2);
+ 382   1          /*Write into MIREGADR the address of PHY register you want to read.*/
+ 383   1          WriteCtrReg(MIREGADR,address);
+ 384   1          
+ 385   1          /*Set the MIIRD Bit,to request a read.*/
+ 386   1          SetBitField(MICMD, MICMD_MIIRD);
+ 387   1          
+ 388   1          /*Wait and Check if the Read has finished execution*/
+ 389   1          do{bytStat = ReadMacReg(MISTAT);
+ 390   2          }while(bytStat & MISTAT_BUSY);
+ 391   1          
+ 392   1          /*Clear the Read Request bit.*/
+ 393   1          ClrBitField(MICMD,MICMD_MIIRD);
+ 394   1          
+ 395   1          /*Read the low,high data bytes,and assemble them*/
+ 396   1          uiData = (unsigned int)ReadMacReg(MIRDL);       
+ 397   1          uiData |=((unsigned int)ReadMacReg(MIRDH)<<8); // Read high data byte
+ 398   1      
+ 399   1          return uiData;
+ 400   1      }
+ 401          
+ 402          /*******************************************************************************
+ 403          * Function Name: WriteCtrReg
+ 404          ********************************************************************************
+ 405          * Summary:
+ 406          *   Writes to a control Register.Assumes the correct bank is already selected.
+ 407          *
+ 408          * Parameters:
+ 409          *   bytAddress - Address of the Register to be Read.
+ 410          *   bytData - The data payload to write.
+ 411          *
+ 412          * Returns:
+ 413          *   Data in the Register,as an unsigned char.
+ 414          *******************************************************************************/
+ 415          static unsigned char WriteCtrReg(unsigned char bytAddress,unsigned char bytData){
+ 416   1          
+ 417   1          /*Check Validity of Address*/
+ 418   1          if (bytAddress > 0x1f){
+ 419   2              return FALSE;
+ 420   2          }
+ 421   1      
+ 422   1          bytAddress |= WCR_OP;//Set the Opcode.
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 8   
+
+ 423   1          SPI_SEL(TRUE);//Activate CS(Pulled Low.)
+ 424   1          
+ 425   1          spiTxBuffer(&bytAddress,1);//Send the OpCode and Address.
+ 426   1          spiTxBuffer(&bytData,1);//Send the data payload.
+ 427   1          
+ 428   1          SPI_SEL(FALSE);//Deactivate CS(Pulled High.)
+ 429   1        
+ 430   1          return TRUE;
+ 431   1      }
+ 432          
+ 433          /*******************************************************************************
+ 434          * Function Name: ReadMacBuffer
+ 435          ********************************************************************************
+ 436          * Summary:
+ 437          *   Reads the 8kb buffer of the ENC chip.
+ 438          *
+ 439          * Parameters:
+ 440          *   bytBuffer - The buffer to store the read data.
+ 441          *   byt_length - Number of bytes to read into bytBuffer.
+ 442          *
+ 443          * Returns:
+ 444          *   Number of bytes read.
+ 445          *******************************************************************************/
+ 446          static unsigned int ReadMacBuffer(unsigned char * bytBuffer,unsigned int byt_length){
+ 447   1          unsigned char bytOpcode;
+ 448   1          volatile unsigned int len;
+ 449   1      
+ 450   1          bytOpcode = RBM_OP;//Set the Opcode.
+ 451   1          
+ 452   1          SPI_SEL(TRUE);//Activate CS(Pulled Low.)
+ 453   1          
+ 454   1          spiTxBuffer(&bytOpcode,1);//Send the OpCode.
+ 455   1          len = spiRxBuffer(bytBuffer, byt_length);//Read bytes into the buffer.
+ 456   1          
+ 457   1          SPI_SEL(FALSE);//Deactivate CS(Pulled High.)
+ 458   1        
+ 459   1          return len;
+ 460   1      }
+ 461          
+ 462          
+ 463          /*******************************************************************************
+ 464          * Function Name: WriteMacBuffer
+ 465          ********************************************************************************
+ 466          * Summary:
+ 467          *   Writes the 8kb buffer of the ENC chip.Assumes auto increment is ON.
+ 468          *
+ 469          * Parameters:
+ 470          *   bytBuffer - The buffer that stores data to be written.
+ 471          *   ui_len - Number of bytes to write into bytBuffer.
+ 472          *
+ 473          * Returns:
+ 474          *   Number of bytes written.
+ 475          *******************************************************************************/
+ 476          static unsigned int WriteMacBuffer(unsigned char * bytBuffer,unsigned int ui_len){
+ 477   1          unsigned char bytOpcode;
+ 478   1          volatile unsigned int len;
+ 479   1      
+ 480   1          bytOpcode = WBM_OP;//Set the opcode.
+ 481   1          
+ 482   1          SPI_SEL(TRUE);//Activate CS(Pulled Low.)
+ 483   1            
+ 484   1          spiTxBuffer(&bytOpcode,1);//Send the opcode
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 9   
+
+ 485   1          len = spiTxBuffer(bytBuffer, ui_len);//Send the bytes out
+ 486   1          
+ 487   1          SPI_SEL(FALSE);//Deactivate CS(Pulled High.)
+ 488   1        
+ 489   1          return len;
+ 490   1      }
+ 491          
+ 492          /*******************************************************************************
+ 493          * Function Name: SetBitField
+ 494          ********************************************************************************
+ 495          * Summary:
+ 496          *   Sets those bits in the register at location bytAddress,which are set in bytData.
+ 497          *   Assumes that the correct bank is already selected.
+ 498          * Parameters:
+ 499          *   bytAddress - Address of the register
+ 500          *   bytData - appropriate bitmask that needs to be set.
+ 501          *
+ 502          * Returns:
+ 503          *   TRUE - Command executed.
+ 504          *   FALSE - Invalid Address.
+ 505          *******************************************************************************/
+ 506          static unsigned char SetBitField(unsigned char bytAddress, unsigned char bytData){
+ 507   1          
+ 508   1          if (bytAddress > 0x1f){
+ 509   2              return FALSE;
+ 510   2          }
+ 511   1      
+ 512   1          bytAddress |= BFS_OP;//Set the opcode.
+ 513   1          
+ 514   1          SPI_SEL(TRUE);//Activate CS(Pulled Low.)
+ 515   1       
+ 516   1          spiTxBuffer(&bytAddress,1);//Send the opcode and address.
+ 517   1          spiTxBuffer(&bytData,1);//Send the data.
+ 518   1          
+ 519   1          SPI_SEL(FALSE);//Deactivate CS(Pulled High.)
+ 520   1        
+ 521   1          return TRUE;
+ 522   1      }
+ 523          
+ 524          /*******************************************************************************
+ 525          * Function Name: ClrBitField
+ 526          ********************************************************************************
+ 527          * Summary:
+ 528          *   Clears those bits in the register at location bytAddress,which are set in bytData.
+ 529          *   Assumes that the correct bank is already selected.
+ 530          * Parameters:
+ 531          *   bytAddress - Address of the register
+ 532          *   bytData - appropriate bitmask that needs to be cleared.
+ 533          *
+ 534          * Returns:
+ 535          *   TRUE - Command executed.
+ 536          *   FALSE - Invalid Address.
+ 537          *******************************************************************************/
+ 538          static unsigned char ClrBitField(unsigned char bytAddress, unsigned char bytData){
+ 539   1          
+ 540   1          if (bytAddress > 0x1f){
+ 541   2              return FALSE;
+ 542   2          }
+ 543   1      
+ 544   1          bytAddress |= BFC_OP;//Set the opcode.
+ 545   1          
+ 546   1          SPI_SEL(TRUE);//Activate CS(Pulled Low.)
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 10  
+
+ 547   1      
+ 548   1          spiTxBuffer(&bytAddress,1);//Send the opcode and address.
+ 549   1          spiTxBuffer(&bytData,1);//Send the data.
+ 550   1          
+ 551   1          SPI_SEL(FALSE);//Deactivate CS(Pulled Low.)
+ 552   1        
+ 553   1          return TRUE;
+ 554   1      }
+ 555          
+ 556          /*******************************************************************************
+ 557          * Function Name: BankSel
+ 558          ********************************************************************************
+ 559          * Summary:
+ 560          *   Sets the correct bank,for further register manipulation.
+ 561          *   Note that you should call this before any register manipulation,to set the
+ 562          *   right bank.
+ 563          * Parameters:
+ 564          *   bank - can be either of 0,1,2 or 3,depending on which bank you want to set.
+ 565          *
+ 566          * Returns:
+ 567          *   Nothing.
+ 568          *******************************************************************************/
+ 569          static void BankSel(unsigned char bank){
+ 570   1          volatile unsigned char temp;
+ 571   1          if (bank >3)
+ 572   1              return;
+ 573   1              
+ 574   1          temp = ReadETHReg(ECON1);//Read ECON1 Register.
+ 575   1          temp &= ~ECON1_BSEL;//Mask off the BSEL<1:0> bits
+ 576   1          temp |= bank;//Set the new BSEL bits.
+ 577   1          WriteCtrReg(ECON1, temp);//Write the new ECON1 back.
+ 578   1      }
+ 579          /*******************************************************************************
+ 580          * Function Name: ResetMac
+ 581          ********************************************************************************
+ 582          * Summary:
+ 583          *   Sends a Soft Reset command over SPI to the chip.
+ 584          *   Gives a large delay of 1second before returning.
+ 585          *   right bank.
+ 586          * Parameters:
+ 587          *   none.
+ 588          * Returns:
+ 589          *   Nothing.
+ 590          *******************************************************************************/
+ 591          static void ResetMac(void){
+ 592   1          unsigned char bytOpcode = RESET_OP;
+ 593   1          
+ 594   1          SPI_SEL(TRUE);//Activate CS(Pulled Low.)
+ 595   1          
+ 596   1          spiTxBuffer(&bytOpcode,1);//Send the Command.
+ 597   1          
+ 598   1          SPI_SEL(FALSE);//Deactivate CS(Pulled High.)
+ 599   1          
+ 600   1          /*Give it 1sec to come out of Reset.*/
+ 601   1          CyDelay(1000);
+ 602   1      }
+ 603          
+ 604          
+ 605          /*******************************************************************************
+ 606          * Function Name: IsLinkUp
+ 607          ********************************************************************************
+ 608          * Summary:
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 11  
+
+ 609          *   Returns the status of the PHY link,from PHSTAT2 register.
+ 610          *   Do not call this before initMAC,since SPIM is started in InitMAC function.
+ 611          *
+ 612          * Parameters:
+ 613          *   none.
+ 614          *
+ 615          * Returns:
+ 616          *   0x01 - If link is up.
+ 617          *   0x00 - If link is not up.
+ 618          *
+ 619          *******************************************************************************/
+ 620          unsigned char IsLinkUp(void){
+ 621   1          return(unsigned char)(ReadPhyReg(PHSTAT2) && 0x0400);
+ 622   1      }
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 12  
+
+ASSEMBLY LISTING OF GENERATED OBJECT CODE
+
+
+             ; FUNCTION spiInit (BEGIN)
+                                           ; SOURCE LINE # 107
+                                           ; SOURCE LINE # 108
+0000 120000      E     LCALL   SPIM_Start
+                                           ; SOURCE LINE # 109
+0003         ?C0001:
+0003 22                RET     
+             ; FUNCTION spiInit (END)
+
+             ; FUNCTION _spiTxByte (BEGIN)
+                                           ; SOURCE LINE # 112
+0000 900000      R     MOV     DPTR,#bDataSend
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 113
+                                           ; SOURCE LINE # 116
+0005 900000      R     MOV     DPTR,#bDataSend
+0008 E0                MOVX    A,@DPTR
+0009 FF                MOV     R7,A
+000A 906441            MOV     DPTR,#06441H
+000D EF                MOV     A,R7
+000E F0                MOVX    @DPTR,A
+000F         ?C0002:
+                                           ; SOURCE LINE # 117
+000F 120000      E     LCALL   SPIM_ReadTxStatus
+0012 7E00              MOV     R6,#00H
+0014 EF                MOV     A,R7
+0015 30E0F7            JNB     ACC.0,?C0002
+0018         ?C0003:
+                                           ; SOURCE LINE # 119
+0018 906451            MOV     DPTR,#06451H
+001B E0                MOVX    A,@DPTR
+001C FF                MOV     R7,A
+                                           ; SOURCE LINE # 120
+001D         ?C0004:
+001D 22                RET     
+             ; FUNCTION _spiTxByte (END)
+
+             ; FUNCTION spiRxByte (BEGIN)
+                                           ; SOURCE LINE # 122
+                                           ; SOURCE LINE # 124
+0000 7F00              MOV     R7,#00H
+0002 120000      R     LCALL   _spiTxByte
+                                           ; SOURCE LINE # 125
+0005         ?C0005:
+0005 22                RET     
+             ; FUNCTION spiRxByte (END)
+
+             ; FUNCTION _spiTxBuffer (BEGIN)
+                                           ; SOURCE LINE # 127
+0000 900000      R     MOV     DPTR,#ptrBuffer
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#Len
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 128
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 13  
+
+                                           ; SOURCE LINE # 131
+000E 900000      R     MOV     DPTR,#Len
+0011 E0                MOVX    A,@DPTR
+0012 FE                MOV     R6,A
+0013 A3                INC     DPTR
+0014 E0                MOVX    A,@DPTR
+0015 FF                MOV     R7,A
+0016 EF                MOV     A,R7
+0017 4E                ORL     A,R6
+0018 7006              JNZ     ?C0006
+                                           ; SOURCE LINE # 132
+001A E4                CLR     A
+001B 7E00              MOV     R6,#00H
+001D 7F00              MOV     R7,#00H
+001F 22                RET     
+0020         ?C0006:
+                                           ; SOURCE LINE # 133
+0020 900000      R     MOV     DPTR,#i
+0023 E4                CLR     A
+0024 F0                MOVX    @DPTR,A
+0025 A3                INC     DPTR
+0026 E4                CLR     A
+0027 F0                MOVX    @DPTR,A
+0028         ?C0008:
+0028 900000      R     MOV     DPTR,#Len
+002B E0                MOVX    A,@DPTR
+002C FE                MOV     R6,A
+002D A3                INC     DPTR
+002E E0                MOVX    A,@DPTR
+002F FF                MOV     R7,A
+0030 900000      R     MOV     DPTR,#i
+0033 E0                MOVX    A,@DPTR
+0034 FC                MOV     R4,A
+0035 A3                INC     DPTR
+0036 E0                MOVX    A,@DPTR
+0037 FD                MOV     R5,A
+0038 C3                CLR     C
+0039 ED                MOV     A,R5
+003A 9F                SUBB    A,R7
+003B EC                MOV     A,R4
+003C 9E                SUBB    A,R6
+003D 501D              JNC     ?C0009
+                                           ; SOURCE LINE # 134
+003F 900000      R     MOV     DPTR,#ptrBuffer
+0042 E4                CLR     A
+0043 75F001            MOV     B,#01H
+0046 120000      E     LCALL   ?C?PLDIXDATA
+0049 120000      E     LCALL   ?C?CLDPTR
+004C FF                MOV     R7,A
+004D 120000      R     LCALL   _spiTxByte
+                                           ; SOURCE LINE # 135
+0050         ?C0010:
+0050 900000      R     MOV     DPTR,#i
+0053 E4                CLR     A
+0054 75F001            MOV     B,#01H
+0057 120000      E     LCALL   ?C?IILDX
+005A 80CC              SJMP    ?C0008
+005C         ?C0009:
+                                           ; SOURCE LINE # 137
+005C 900000      R     MOV     DPTR,#i
+005F E0                MOVX    A,@DPTR
+0060 FE                MOV     R6,A
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 14  
+
+0061 A3                INC     DPTR
+0062 E0                MOVX    A,@DPTR
+0063 FF                MOV     R7,A
+                                           ; SOURCE LINE # 138
+0064         ?C0007:
+0064 22                RET     
+             ; FUNCTION _spiTxBuffer (END)
+
+             ; FUNCTION _spiRxBuffer (BEGIN)
+                                           ; SOURCE LINE # 140
+0000 900000      R     MOV     DPTR,#ptrBuffer
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#Len
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 141
+                                           ; SOURCE LINE # 144
+000E 900000      R     MOV     DPTR,#i
+0011 E4                CLR     A
+0012 F0                MOVX    @DPTR,A
+0013 A3                INC     DPTR
+0014 E4                CLR     A
+0015 F0                MOVX    @DPTR,A
+0016         ?C0011:
+0016 900000      R     MOV     DPTR,#Len
+0019 E0                MOVX    A,@DPTR
+001A FE                MOV     R6,A
+001B A3                INC     DPTR
+001C E0                MOVX    A,@DPTR
+001D FF                MOV     R7,A
+001E 900000      R     MOV     DPTR,#i
+0021 E0                MOVX    A,@DPTR
+0022 FC                MOV     R4,A
+0023 A3                INC     DPTR
+0024 E0                MOVX    A,@DPTR
+0025 FD                MOV     R5,A
+0026 C3                CLR     C
+0027 ED                MOV     A,R5
+0028 9F                SUBB    A,R7
+0029 EC                MOV     A,R4
+002A 9E                SUBB    A,R6
+002B 501D              JNC     ?C0012
+                                           ; SOURCE LINE # 145
+002D 120000      R     LCALL   spiRxByte
+0030 900000      R     MOV     DPTR,#ptrBuffer
+0033 E4                CLR     A
+0034 75F001            MOV     B,#01H
+0037 120000      E     LCALL   ?C?PLDIXDATA
+003A EF                MOV     A,R7
+003B 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 146
+003E         ?C0013:
+003E 900000      R     MOV     DPTR,#i
+0041 E4                CLR     A
+0042 75F001            MOV     B,#01H
+0045 120000      E     LCALL   ?C?IILDX
+0048 80CC              SJMP    ?C0011
+004A         ?C0012:
+                                           ; SOURCE LINE # 148
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 15  
+
+004A 900000      R     MOV     DPTR,#i
+004D E0                MOVX    A,@DPTR
+004E FE                MOV     R6,A
+004F A3                INC     DPTR
+0050 E0                MOVX    A,@DPTR
+0051 FF                MOV     R7,A
+                                           ; SOURCE LINE # 149
+0052         ?C0014:
+0052 22                RET     
+             ; FUNCTION _spiRxBuffer (END)
+
+             ; FUNCTION ReadChipRev (BEGIN)
+                                           ; SOURCE LINE # 51
+                                           ; SOURCE LINE # 52
+0000 7F03              MOV     R7,#03H
+0002 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 53
+0005 7F12              MOV     R7,#012H
+0007 120000      R     LCALL   _ReadETHReg
+                                           ; SOURCE LINE # 54
+000A         ?C0015:
+000A 22                RET     
+             ; FUNCTION ReadChipRev (END)
+
+             ; FUNCTION _initMAC (BEGIN)
+                                           ; SOURCE LINE # 56
+0000 900000      R     MOV     DPTR,#deviceMAC
+0003 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 58
+0006 120000      R     LCALL   spiInit
+                                           ; SOURCE LINE # 61
+0009 120000      R     LCALL   ResetMac
+                                           ; SOURCE LINE # 65
+000C 7F00              MOV     R7,#00H
+000E 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 66
+0011 7D00              MOV     R5,#00H
+0013 7F08              MOV     R7,#08H
+0015 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 67
+0018 7D00              MOV     R5,#00H
+001A 7F09              MOV     R7,#09H
+001C 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 68
+001F 7DFF              MOV     R5,#0FFH
+0021 7F0A              MOV     R7,#0AH
+0023 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 69
+0026 7D0F              MOV     R5,#0FH
+0028 7F0B              MOV     R7,#0BH
+002A 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 72
+002D 7D00              MOV     R5,#00H
+002F 7F0C              MOV     R7,#0CH
+0031 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 73
+0034 7D00              MOV     R5,#00H
+0036 7F0D              MOV     R7,#0DH
+0038 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 76
+003B 7D00              MOV     R5,#00H
+003D 7F04              MOV     R7,#04H
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 16  
+
+003F 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 77
+0042 7D10              MOV     R5,#010H
+0044 7F05              MOV     R7,#05H
+0046 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 82
+0049 7F01              MOV     R7,#01H
+004B 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 85
+004E 7DB0              MOV     R5,#0B0H
+0050 7F18              MOV     R7,#018H
+0052 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 97
+0055 7D3F              MOV     R5,#03FH
+0057 7F08              MOV     R7,#08H
+0059 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 98
+005C 7D30              MOV     R5,#030H
+005E 7F09              MOV     R7,#09H
+0060 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 99
+0063 7D39              MOV     R5,#039H
+0065 7F10              MOV     R7,#010H
+0067 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 100
+006A 7DF7              MOV     R5,#0F7H
+006C 7F11              MOV     R7,#011H
+006E 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 104
+0071 7F02              MOV     R7,#02H
+0073 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 105
+0076 7D01              MOV     R5,#01H
+0078 7F00              MOV     R7,#00H
+007A 120000      R     LCALL   _SetBitField
+                                           ; SOURCE LINE # 106
+007D 7D32              MOV     R5,#032H
+007F 7F02              MOV     R7,#02H
+0081 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 110
+0084 7DEE              MOV     R5,#0EEH
+0086 7F0A              MOV     R7,#0AH
+0088 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 111
+008B 7D05              MOV     R5,#05H
+008D 7F0B              MOV     R7,#0BH
+008F 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 112
+0092 7D12              MOV     R5,#012H
+0094 7F04              MOV     R7,#04H
+0096 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 113
+0099 7D12              MOV     R5,#012H
+009B 7F06              MOV     R7,#06H
+009D 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 114
+00A0 7D0C              MOV     R5,#0CH
+00A2 7F07              MOV     R7,#07H
+00A4 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 118
+00A7 7F03              MOV     R7,#03H
+00A9 120000      R     LCALL   _BankSel
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 17  
+
+                                           ; SOURCE LINE # 119
+00AC 900000      R     MOV     DPTR,#deviceMAC
+00AF 120000      E     LCALL   ?C?PLDXDATA
+00B2 120000      E     LCALL   ?C?CLDPTR
+00B5 FD                MOV     R5,A
+00B6 7F04              MOV     R7,#04H
+00B8 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 120
+00BB 900000      R     MOV     DPTR,#deviceMAC
+00BE 120000      E     LCALL   ?C?PLDXDATA
+00C1 E9                MOV     A,R1
+00C2 2401              ADD     A,#01H
+00C4 F9                MOV     R1,A
+00C5 EA                MOV     A,R2
+00C6 3400              ADDC    A,#00H
+00C8 FA                MOV     R2,A
+00C9 120000      E     LCALL   ?C?CLDPTR
+00CC FD                MOV     R5,A
+00CD 7F05              MOV     R7,#05H
+00CF 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 121
+00D2 900000      R     MOV     DPTR,#deviceMAC
+00D5 120000      E     LCALL   ?C?PLDXDATA
+00D8 E9                MOV     A,R1
+00D9 2402              ADD     A,#02H
+00DB F9                MOV     R1,A
+00DC EA                MOV     A,R2
+00DD 3400              ADDC    A,#00H
+00DF FA                MOV     R2,A
+00E0 120000      E     LCALL   ?C?CLDPTR
+00E3 FD                MOV     R5,A
+00E4 7F02              MOV     R7,#02H
+00E6 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 122
+00E9 900000      R     MOV     DPTR,#deviceMAC
+00EC 120000      E     LCALL   ?C?PLDXDATA
+00EF E9                MOV     A,R1
+00F0 2403              ADD     A,#03H
+00F2 F9                MOV     R1,A
+00F3 EA                MOV     A,R2
+00F4 3400              ADDC    A,#00H
+00F6 FA                MOV     R2,A
+00F7 120000      E     LCALL   ?C?CLDPTR
+00FA FD                MOV     R5,A
+00FB 7F03              MOV     R7,#03H
+00FD 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 123
+0100 900000      R     MOV     DPTR,#deviceMAC
+0103 120000      E     LCALL   ?C?PLDXDATA
+0106 E9                MOV     A,R1
+0107 2404              ADD     A,#04H
+0109 F9                MOV     R1,A
+010A EA                MOV     A,R2
+010B 3400              ADDC    A,#00H
+010D FA                MOV     R2,A
+010E 120000      E     LCALL   ?C?CLDPTR
+0111 FD                MOV     R5,A
+0112 7F00              MOV     R7,#00H
+0114 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 124
+0117 900000      R     MOV     DPTR,#deviceMAC
+011A 120000      E     LCALL   ?C?PLDXDATA
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 18  
+
+011D E9                MOV     A,R1
+011E 2405              ADD     A,#05H
+0120 F9                MOV     R1,A
+0121 EA                MOV     A,R2
+0122 3400              ADDC    A,#00H
+0124 FA                MOV     R2,A
+0125 120000      E     LCALL   ?C?CLDPTR
+0128 FD                MOV     R5,A
+0129 7F01              MOV     R7,#01H
+012B 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 129
+012E 7D00              MOV     R5,#00H
+0130 7C00              MOV     R4,#00H
+0132 7F00              MOV     R7,#00H
+0134 120000      R     LCALL   _WritePhyReg
+                                           ; SOURCE LINE # 135
+0137 7D00              MOV     R5,#00H
+0139 7C01              MOV     R4,#01H
+013B 7F10              MOV     R7,#010H
+013D 120000      R     LCALL   _WritePhyReg
+                                           ; SOURCE LINE # 138
+0140 7D04              MOV     R5,#04H
+0142 7F1F              MOV     R7,#01FH
+0144 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 139
+0147         ?C0016:
+0147 22                RET     
+             ; FUNCTION _initMAC (END)
+
+             ; FUNCTION _MACWrite (BEGIN)
+                                           ; SOURCE LINE # 141
+0000 900000      R     MOV     DPTR,#packet
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#len
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 143
+000E 900000      R     MOV     DPTR,#bytControl
+0011 E4                CLR     A
+0012 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 146
+0013 7F00              MOV     R7,#00H
+0015 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 149
+0018 7D00              MOV     R5,#00H
+001A 7F04              MOV     R7,#04H
+001C 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 150
+001F 7D10              MOV     R5,#010H
+0021 7F05              MOV     R7,#05H
+0023 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 153
+0026 7D00              MOV     R5,#00H
+0028 7F02              MOV     R7,#02H
+002A 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 154
+002D 7D10              MOV     R5,#010H
+002F 7F03              MOV     R7,#03H
+0031 120000      R     LCALL   _WriteCtrReg
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 19  
+
+                                           ; SOURCE LINE # 160
+0034 7B01              MOV     R3,#01H
+0036 7A00        R     MOV     R2,#HIGH bytControl
+0038 7900        R     MOV     R1,#LOW bytControl
+003A 7D01              MOV     R5,#01H
+003C 7C00              MOV     R4,#00H
+003E 120000      R     LCALL   _WriteMacBuffer
+                                           ; SOURCE LINE # 163
+0041 900000      R     MOV     DPTR,#packet
+0044 120000      E     LCALL   ?C?PLDXDATA
+0047 900000      R     MOV     DPTR,#len
+004A E0                MOVX    A,@DPTR
+004B FC                MOV     R4,A
+004C A3                INC     DPTR
+004D E0                MOVX    A,@DPTR
+004E FD                MOV     R5,A
+004F 120000      R     LCALL   _WriteMacBuffer
+                                           ; SOURCE LINE # 166
+0052 900000      R     MOV     DPTR,#len
+0055 E0                MOVX    A,@DPTR
+0056 FE                MOV     R6,A
+0057 A3                INC     DPTR
+0058 E0                MOVX    A,@DPTR
+0059 FF                MOV     R7,A
+005A EF                MOV     A,R7
+005B 04                INC     A
+005C FF                MOV     R7,A
+005D EF                MOV     A,R7
+005E 54FF              ANL     A,#0FFH
+0060 FD                MOV     R5,A
+0061 7F06              MOV     R7,#06H
+0063 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 167
+0066 900000      R     MOV     DPTR,#len
+0069 E0                MOVX    A,@DPTR
+006A FE                MOV     R6,A
+006B A3                INC     DPTR
+006C E0                MOVX    A,@DPTR
+006D FF                MOV     R7,A
+006E EF                MOV     A,R7
+006F 2401              ADD     A,#01H
+0071 FF                MOV     R7,A
+0072 EE                MOV     A,R6
+0073 3410              ADDC    A,#010H
+0075 FE                MOV     R6,A
+0076 7F00              MOV     R7,#00H
+0078 EE                MOV     A,R6
+0079 FF                MOV     R7,A
+007A 7E00              MOV     R6,#00H
+007C AD07              MOV     R5,AR7
+007E 7F07              MOV     R7,#07H
+0080 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 170
+0083 7D08              MOV     R5,#08H
+0085 7F1C              MOV     R7,#01CH
+0087 120000      R     LCALL   _ClrBitField
+                                           ; SOURCE LINE # 171
+008A 7D88              MOV     R5,#088H
+008C 7F1B              MOV     R7,#01BH
+008E 120000      R     LCALL   _SetBitField
+                                           ; SOURCE LINE # 176
+0091 7D80              MOV     R5,#080H
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 20  
+
+0093 7F1F              MOV     R7,#01FH
+0095 120000      R     LCALL   _SetBitField
+0098 7D80              MOV     R5,#080H
+009A 7F1F              MOV     R7,#01FH
+009C 120000      R     LCALL   _ClrBitField
+009F 7D0A              MOV     R5,#0AH
+00A1 7F1C              MOV     R7,#01CH
+00A3 120000      R     LCALL   _ClrBitField
+                                           ; SOURCE LINE # 179
+00A6 7D08              MOV     R5,#08H
+00A8 7F1F              MOV     R7,#01FH
+00AA 120000      R     LCALL   _SetBitField
+00AD         ?C0019:
+                                           ; SOURCE LINE # 183
+00AD         ?C0017:
+00AD 7F1C              MOV     R7,#01CH
+00AF 120000      R     LCALL   _ReadETHReg
+00B2 EF                MOV     A,R7
+00B3 30E3F7            JNB     ACC.3,?C0017
+00B6         ?C0018:
+                                           ; SOURCE LINE # 186
+00B6 7D08              MOV     R5,#08H
+00B8 7F1F              MOV     R7,#01FH
+00BA 120000      R     LCALL   _ClrBitField
+                                           ; SOURCE LINE # 190
+00BD 7F00              MOV     R7,#00H
+00BF 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 193
+00C2 900000      R     MOV     DPTR,#len
+00C5 E4                CLR     A
+00C6 75F001            MOV     B,#01H
+00C9 120000      E     LCALL   ?C?IILDX
+                                           ; SOURCE LINE # 196
+00CC 900000      R     MOV     DPTR,#len
+00CF E0                MOVX    A,@DPTR
+00D0 FE                MOV     R6,A
+00D1 A3                INC     DPTR
+00D2 E0                MOVX    A,@DPTR
+00D3 FF                MOV     R7,A
+00D4 EF                MOV     A,R7
+00D5 54FF              ANL     A,#0FFH
+00D7 FD                MOV     R5,A
+00D8 7F00              MOV     R7,#00H
+00DA 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 197
+00DD 900000      R     MOV     DPTR,#len
+00E0 E0                MOVX    A,@DPTR
+00E1 FE                MOV     R6,A
+00E2 A3                INC     DPTR
+00E3 E0                MOVX    A,@DPTR
+00E4 FF                MOV     R7,A
+00E5 7F00              MOV     R7,#00H
+00E7 EE                MOV     A,R6
+00E8 FF                MOV     R7,A
+00E9 7E00              MOV     R6,#00H
+00EB AD07              MOV     R5,AR7
+00ED 7F01              MOV     R7,#01H
+00EF 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 201
+00F2 7B01              MOV     R3,#01H
+00F4 7A00        R     MOV     R2,#HIGH TxStatus
+00F6 7900        R     MOV     R1,#LOW TxStatus
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 21  
+
+00F8 7D07              MOV     R5,#07H
+00FA 7C00              MOV     R4,#00H
+00FC 120000      R     LCALL   _ReadMacBuffer
+                                           ; SOURCE LINE # 204
+00FF 7F1D              MOV     R7,#01DH
+0101 120000      R     LCALL   _ReadETHReg
+0104 EF                MOV     A,R7
+0105 30E131            JNB     ACC.1,?C0020
+                                           ; SOURCE LINE # 205
+0108 900000      R     MOV     DPTR,#TxStatus+03H
+010B E0                MOVX    A,@DPTR
+010C FF                MOV     R7,A
+010D EF                MOV     A,R7
+010E 30E515            JNB     ACC.5,?C0021
+                                           ; SOURCE LINE # 206
+0111 7D08              MOV     R5,#08H
+0113 7F1F              MOV     R7,#01FH
+0115 120000      R     LCALL   _ClrBitField
+                                           ; SOURCE LINE # 207
+0118 7D08              MOV     R5,#08H
+011A 7F1F              MOV     R7,#01FH
+011C 120000      R     LCALL   _SetBitField
+                                           ; SOURCE LINE # 208
+011F 7D12              MOV     R5,#012H
+0121 7F1D              MOV     R7,#01DH
+0123 120000      R     LCALL   _ClrBitField
+                                           ; SOURCE LINE # 209
+0126         ?C0021:
+                                           ; SOURCE LINE # 210
+0126 7D0A              MOV     R5,#0AH
+0128 7F1C              MOV     R7,#01CH
+012A 120000      R     LCALL   _ClrBitField
+                                           ; SOURCE LINE # 211
+012D 7D02              MOV     R5,#02H
+012F 7F1D              MOV     R7,#01DH
+0131 120000      R     LCALL   _ClrBitField
+                                           ; SOURCE LINE # 212
+0134 7F01              MOV     R7,#01H
+0136 22                RET     
+                                           ; SOURCE LINE # 213
+0137 8003              SJMP    ?C0023
+0139         ?C0020:
+                                           ; SOURCE LINE # 214
+0139 7F00              MOV     R7,#00H
+013B 22                RET     
+                                           ; SOURCE LINE # 215
+013C         ?C0023:
+                                           ; SOURCE LINE # 216
+013C 7F00              MOV     R7,#00H
+                                           ; SOURCE LINE # 217
+013E         ?C0022:
+013E 22                RET     
+             ; FUNCTION _MACWrite (END)
+
+             ; FUNCTION _MACRead (BEGIN)
+                                           ; SOURCE LINE # 219
+0000 900000      R     MOV     DPTR,#packet
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#maxLen
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 22  
+
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 224
+000E 7F01              MOV     R7,#01H
+0010 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 225
+0013 7F19              MOV     R7,#019H
+0015 120000      R     LCALL   _ReadETHReg
+0018 EF                MOV     A,R7
+0019 7006              JNZ     ?C0024
+                                           ; SOURCE LINE # 226
+001B E4                CLR     A
+001C 7E00              MOV     R6,#00H
+001E 7F00              MOV     R7,#00H
+0020 22                RET     
+                                           ; SOURCE LINE # 227
+0021         ?C0024:
+                                           ; SOURCE LINE # 230
+0021 7F00              MOV     R7,#00H
+0023 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 231
+0026 900000      R     MOV     DPTR,#nextpckptr
+0029 E0                MOVX    A,@DPTR
+002A FE                MOV     R6,A
+002B A3                INC     DPTR
+002C E0                MOVX    A,@DPTR
+002D FF                MOV     R7,A
+002E EF                MOV     A,R7
+002F 54FF              ANL     A,#0FFH
+0031 FD                MOV     R5,A
+0032 7F00              MOV     R7,#00H
+0034 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 232
+0037 900000      R     MOV     DPTR,#nextpckptr
+003A E0                MOVX    A,@DPTR
+003B FE                MOV     R6,A
+003C A3                INC     DPTR
+003D E0                MOVX    A,@DPTR
+003E FF                MOV     R7,A
+003F 7F00              MOV     R7,#00H
+0041 EE                MOV     A,R6
+0042 FF                MOV     R7,A
+0043 7E00              MOV     R6,#00H
+0045 AD07              MOV     R5,AR7
+0047 7F01              MOV     R7,#01H
+0049 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 236
+004C 7B01              MOV     R3,#01H
+004E 7A00        R     MOV     R2,#HIGH ptrRxStatus
+0050 7900        R     MOV     R1,#LOW ptrRxStatus
+0052 7D06              MOV     R5,#06H
+0054 7C00              MOV     R4,#00H
+0056 120000      R     LCALL   _ReadMacBuffer
+                                           ; SOURCE LINE # 239
+0059 900000      R     MOV     DPTR,#ptrRxStatus
+005C E0                MOVX    A,@DPTR
+005D FE                MOV     R6,A
+005E A3                INC     DPTR
+005F E0                MOVX    A,@DPTR
+0060 FF                MOV     R7,A
+0061 EF                MOV     A,R7
+0062 7D00              MOV     R5,#00H
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 23  
+
+0064 FC                MOV     R4,A
+0065 900000      R     MOV     DPTR,#ptrRxStatus
+0068 E0                MOVX    A,@DPTR
+0069 FE                MOV     R6,A
+006A A3                INC     DPTR
+006B E0                MOVX    A,@DPTR
+006C FF                MOV     R7,A
+006D EE                MOV     A,R6
+006E FF                MOV     R7,A
+006F 7E00              MOV     R6,#00H
+0071 EE                MOV     A,R6
+0072 4C                ORL     A,R4
+0073 FE                MOV     R6,A
+0074 EF                MOV     A,R7
+0075 4D                ORL     A,R5
+0076 FF                MOV     R7,A
+0077 900000      R     MOV     DPTR,#nextpckptr
+007A EE                MOV     A,R6
+007B F0                MOVX    @DPTR,A
+007C A3                INC     DPTR
+007D EF                MOV     A,R7
+007E F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 242
+007F 900000      R     MOV     DPTR,#ptrRxStatus+02H
+0082 E0                MOVX    A,@DPTR
+0083 FE                MOV     R6,A
+0084 A3                INC     DPTR
+0085 E0                MOVX    A,@DPTR
+0086 FF                MOV     R7,A
+0087 EF                MOV     A,R7
+0088 7D00              MOV     R5,#00H
+008A FC                MOV     R4,A
+008B 900000      R     MOV     DPTR,#ptrRxStatus+02H
+008E E0                MOVX    A,@DPTR
+008F FE                MOV     R6,A
+0090 A3                INC     DPTR
+0091 E0                MOVX    A,@DPTR
+0092 FF                MOV     R7,A
+0093 EE                MOV     A,R6
+0094 FF                MOV     R7,A
+0095 7E00              MOV     R6,#00H
+0097 EE                MOV     A,R6
+0098 4C                ORL     A,R4
+0099 FE                MOV     R6,A
+009A EF                MOV     A,R7
+009B 4D                ORL     A,R5
+009C FF                MOV     R7,A
+009D EF                MOV     A,R7
+009E 24FC              ADD     A,#0FCH
+00A0 FF                MOV     R7,A
+00A1 EE                MOV     A,R6
+00A2 34FF              ADDC    A,#0FFH
+00A4 FE                MOV     R6,A
+00A5 900000      R     MOV     DPTR,#pckLen
+00A8 EE                MOV     A,R6
+00A9 F0                MOVX    @DPTR,A
+00AA A3                INC     DPTR
+00AB EF                MOV     A,R7
+00AC F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 244
+00AD 900000      R     MOV     DPTR,#maxLen
+00B0 E0                MOVX    A,@DPTR
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 24  
+
+00B1 FE                MOV     R6,A
+00B2 A3                INC     DPTR
+00B3 E0                MOVX    A,@DPTR
+00B4 FF                MOV     R7,A
+00B5 EF                MOV     A,R7
+00B6 24FF              ADD     A,#0FFH
+00B8 FF                MOV     R7,A
+00B9 EE                MOV     A,R6
+00BA 34FF              ADDC    A,#0FFH
+00BC FE                MOV     R6,A
+00BD 900000      R     MOV     DPTR,#pckLen
+00C0 E0                MOVX    A,@DPTR
+00C1 FC                MOV     R4,A
+00C2 A3                INC     DPTR
+00C3 E0                MOVX    A,@DPTR
+00C4 FD                MOV     R5,A
+00C5 D3                SETB    C
+00C6 ED                MOV     A,R5
+00C7 9F                SUBB    A,R7
+00C8 EC                MOV     A,R4
+00C9 9E                SUBB    A,R6
+00CA 4010              JC      ?C0026
+                                           ; SOURCE LINE # 245
+00CC 900000      R     MOV     DPTR,#maxLen
+00CF E0                MOVX    A,@DPTR
+00D0 FE                MOV     R6,A
+00D1 A3                INC     DPTR
+00D2 E0                MOVX    A,@DPTR
+00D3 FF                MOV     R7,A
+00D4 900000      R     MOV     DPTR,#pckLen
+00D7 EE                MOV     A,R6
+00D8 F0                MOVX    @DPTR,A
+00D9 A3                INC     DPTR
+00DA EF                MOV     A,R7
+00DB F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 246
+00DC         ?C0026:
+                                           ; SOURCE LINE # 252
+00DC 900000      R     MOV     DPTR,#ptrRxStatus+04H
+00DF E0                MOVX    A,@DPTR
+00E0 FF                MOV     R7,A
+00E1 EF                MOV     A,R7
+00E2 30E711            JNB     ACC.7,?C0027
+                                           ; SOURCE LINE # 253
+00E5 900000      R     MOV     DPTR,#packet
+00E8 120000      E     LCALL   ?C?PLDXDATA
+00EB 900000      R     MOV     DPTR,#pckLen
+00EE E0                MOVX    A,@DPTR
+00EF FC                MOV     R4,A
+00F0 A3                INC     DPTR
+00F1 E0                MOVX    A,@DPTR
+00F2 FD                MOV     R5,A
+00F3 120000      R     LCALL   _ReadMacBuffer
+                                           ; SOURCE LINE # 254
+00F6         ?C0027:
+                                           ; SOURCE LINE # 258
+00F6 7F00              MOV     R7,#00H
+00F8 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 259
+00FB 900000      R     MOV     DPTR,#nextpckptr
+00FE E0                MOVX    A,@DPTR
+00FF FE                MOV     R6,A
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 25  
+
+0100 A3                INC     DPTR
+0101 E0                MOVX    A,@DPTR
+0102 FF                MOV     R7,A
+0103 EF                MOV     A,R7
+0104 24FF              ADD     A,#0FFH
+0106 FF                MOV     R7,A
+0107 EE                MOV     A,R6
+0108 34FF              ADDC    A,#0FFH
+010A FE                MOV     R6,A
+010B C3                CLR     C
+010C EE                MOV     A,R6
+010D 9400              SUBB    A,#00H
+010F 4019              JC      ?C0029
+0111 900000      R     MOV     DPTR,#nextpckptr
+0114 E0                MOVX    A,@DPTR
+0115 FE                MOV     R6,A
+0116 A3                INC     DPTR
+0117 E0                MOVX    A,@DPTR
+0118 FF                MOV     R7,A
+0119 EF                MOV     A,R7
+011A 24FF              ADD     A,#0FFH
+011C FF                MOV     R7,A
+011D EE                MOV     A,R6
+011E 34FF              ADDC    A,#0FFH
+0120 FE                MOV     R6,A
+0121 D3                SETB    C
+0122 EF                MOV     A,R7
+0123 94FF              SUBB    A,#0FFH
+0125 EE                MOV     A,R6
+0126 940F              SUBB    A,#0FH
+0128 4010              JC      ?C0028
+012A         ?C0029:
+                                           ; SOURCE LINE # 262
+012A 7DFF              MOV     R5,#0FFH
+012C 7F0C              MOV     R7,#0CH
+012E 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 263
+0131 7D0F              MOV     R5,#0FH
+0133 7F0D              MOV     R7,#0DH
+0135 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 264
+0138 8031              SJMP    ?C0030
+013A         ?C0028:
+                                           ; SOURCE LINE # 265
+013A 900000      R     MOV     DPTR,#nextpckptr
+013D E0                MOVX    A,@DPTR
+013E FE                MOV     R6,A
+013F A3                INC     DPTR
+0140 E0                MOVX    A,@DPTR
+0141 FF                MOV     R7,A
+0142 EF                MOV     A,R7
+0143 14                DEC     A
+0144 FF                MOV     R7,A
+0145 EF                MOV     A,R7
+0146 54FF              ANL     A,#0FFH
+0148 FD                MOV     R5,A
+0149 7F0C              MOV     R7,#0CH
+014B 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 266
+014E 900000      R     MOV     DPTR,#nextpckptr
+0151 E0                MOVX    A,@DPTR
+0152 FE                MOV     R6,A
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 26  
+
+0153 A3                INC     DPTR
+0154 E0                MOVX    A,@DPTR
+0155 FF                MOV     R7,A
+0156 EF                MOV     A,R7
+0157 24FF              ADD     A,#0FFH
+0159 FF                MOV     R7,A
+015A EE                MOV     A,R6
+015B 34FF              ADDC    A,#0FFH
+015D FE                MOV     R6,A
+015E 7F00              MOV     R7,#00H
+0160 EE                MOV     A,R6
+0161 FF                MOV     R7,A
+0162 7E00              MOV     R6,#00H
+0164 AD07              MOV     R5,AR7
+0166 7F0D              MOV     R7,#0DH
+0168 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 267
+016B         ?C0030:
+                                           ; SOURCE LINE # 269
+016B 7D40              MOV     R5,#040H
+016D 7F1E              MOV     R7,#01EH
+016F 120000      R     LCALL   _SetBitField
+                                           ; SOURCE LINE # 272
+0172 900000      R     MOV     DPTR,#pckLen
+0175 E0                MOVX    A,@DPTR
+0176 FE                MOV     R6,A
+0177 A3                INC     DPTR
+0178 E0                MOVX    A,@DPTR
+0179 FF                MOV     R7,A
+                                           ; SOURCE LINE # 273
+017A         ?C0025:
+017A 22                RET     
+             ; FUNCTION _MACRead (END)
+
+             ; FUNCTION _ReadETHReg (BEGIN)
+                                           ; SOURCE LINE # 289
+0000 900000      R     MOV     DPTR,#bytAddress
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 293
+0005 7F00              MOV     R7,#00H
+0007 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 295
+000A 7B01              MOV     R3,#01H
+000C 7A00        R     MOV     R2,#HIGH bytAddress
+000E 7900        R     MOV     R1,#LOW bytAddress
+0010 7D01              MOV     R5,#01H
+0012 7C00              MOV     R4,#00H
+0014 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 296
+0017 7B01              MOV     R3,#01H
+0019 7A00        R     MOV     R2,#HIGH bytData
+001B 7900        R     MOV     R1,#LOW bytData
+001D 7D01              MOV     R5,#01H
+001F 7C00              MOV     R4,#00H
+0021 120000      R     LCALL   _spiRxBuffer
+                                           ; SOURCE LINE # 298
+0024 7F01              MOV     R7,#01H
+0026 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 301
+0029 900000      R     MOV     DPTR,#bytData
+002C E0                MOVX    A,@DPTR
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 27  
+
+002D FF                MOV     R7,A
+                                           ; SOURCE LINE # 302
+002E         ?C0031:
+002E 22                RET     
+             ; FUNCTION _ReadETHReg (END)
+
+             ; FUNCTION _ReadMacReg (BEGIN)
+                                           ; SOURCE LINE # 316
+0000 900000      R     MOV     DPTR,#bytAddress
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 320
+0005 7F00              MOV     R7,#00H
+0007 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 322
+000A 7B01              MOV     R3,#01H
+000C 7A00        R     MOV     R2,#HIGH bytAddress
+000E 7900        R     MOV     R1,#LOW bytAddress
+0010 7D01              MOV     R5,#01H
+0012 7C00              MOV     R4,#00H
+0014 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 323
+0017 7B01              MOV     R3,#01H
+0019 7A00        R     MOV     R2,#HIGH bytData
+001B 7900        R     MOV     R1,#LOW bytData
+001D 7D01              MOV     R5,#01H
+001F 7C00              MOV     R4,#00H
+0021 120000      R     LCALL   _spiRxBuffer
+                                           ; SOURCE LINE # 324
+0024 7B01              MOV     R3,#01H
+0026 7A00        R     MOV     R2,#HIGH bytData
+0028 7900        R     MOV     R1,#LOW bytData
+002A 7D01              MOV     R5,#01H
+002C 7C00              MOV     R4,#00H
+002E 120000      R     LCALL   _spiRxBuffer
+                                           ; SOURCE LINE # 326
+0031 7F01              MOV     R7,#01H
+0033 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 328
+0036 900000      R     MOV     DPTR,#bytData
+0039 E0                MOVX    A,@DPTR
+003A FF                MOV     R7,A
+                                           ; SOURCE LINE # 329
+003B         ?C0032:
+003B 22                RET     
+             ; FUNCTION _ReadMacReg (END)
+
+             ; FUNCTION _WritePhyReg (BEGIN)
+                                           ; SOURCE LINE # 345
+0000 900000      R     MOV     DPTR,#address
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+0005 900000      R     MOV     DPTR,#datapayload
+0008 EC                MOV     A,R4
+0009 F0                MOVX    @DPTR,A
+000A A3                INC     DPTR
+000B ED                MOV     A,R5
+000C F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 346
+000D 900000      R     MOV     DPTR,#address
+0010 E0                MOVX    A,@DPTR
+0011 FF                MOV     R7,A
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 28  
+
+0012 EF                MOV     A,R7
+0013 D3                SETB    C
+0014 9414              SUBB    A,#014H
+0016 4003              JC      ?C0033
+                                           ; SOURCE LINE # 347
+0018 7F01              MOV     R7,#01H
+001A 22                RET     
+                                           ; SOURCE LINE # 348
+001B         ?C0033:
+                                           ; SOURCE LINE # 349
+001B 7F02              MOV     R7,#02H
+001D 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 352
+0020 900000      R     MOV     DPTR,#address
+0023 E0                MOVX    A,@DPTR
+0024 FD                MOV     R5,A
+0025 7F14              MOV     R7,#014H
+0027 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 355
+002A 900000      R     MOV     DPTR,#datapayload
+002D E0                MOVX    A,@DPTR
+002E FE                MOV     R6,A
+002F A3                INC     DPTR
+0030 E0                MOVX    A,@DPTR
+0031 FF                MOV     R7,A
+0032 AD07              MOV     R5,AR7
+0034 7F16              MOV     R7,#016H
+0036 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 358
+0039 900000      R     MOV     DPTR,#datapayload
+003C E0                MOVX    A,@DPTR
+003D FE                MOV     R6,A
+003E A3                INC     DPTR
+003F E0                MOVX    A,@DPTR
+0040 FF                MOV     R7,A
+0041 EE                MOV     A,R6
+0042 FF                MOV     R7,A
+0043 7E00              MOV     R6,#00H
+0045 AD07              MOV     R5,AR7
+0047 7F17              MOV     R7,#017H
+0049 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 360
+004C 7F00              MOV     R7,#00H
+                                           ; SOURCE LINE # 361
+004E         ?C0034:
+004E 22                RET     
+             ; FUNCTION _WritePhyReg (END)
+
+             ; FUNCTION _ReadPhyReg (BEGIN)
+                                           ; SOURCE LINE # 377
+0000 900000      R     MOV     DPTR,#address
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 381
+0005 7F02              MOV     R7,#02H
+0007 120000      R     LCALL   _BankSel
+                                           ; SOURCE LINE # 383
+000A 900000      R     MOV     DPTR,#address
+000D E0                MOVX    A,@DPTR
+000E FD                MOV     R5,A
+000F 7F14              MOV     R7,#014H
+0011 120000      R     LCALL   _WriteCtrReg
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 29  
+
+                                           ; SOURCE LINE # 386
+0014 7D01              MOV     R5,#01H
+0016 7F12              MOV     R7,#012H
+0018 120000      R     LCALL   _SetBitField
+001B         ?C0037:
+                                           ; SOURCE LINE # 389
+001B 7F0A              MOV     R7,#0AH
+001D 120000      R     LCALL   _ReadMacReg
+0020 900000      R     MOV     DPTR,#bytStat
+0023 EF                MOV     A,R7
+0024 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 390
+0025         ?C0035:
+0025 900000      R     MOV     DPTR,#bytStat
+0028 E0                MOVX    A,@DPTR
+0029 FF                MOV     R7,A
+002A EF                MOV     A,R7
+002B 20E0ED            JB      ACC.0,?C0037
+002E         ?C0036:
+                                           ; SOURCE LINE # 393
+002E 7D01              MOV     R5,#01H
+0030 7F12              MOV     R7,#012H
+0032 120000      R     LCALL   _ClrBitField
+                                           ; SOURCE LINE # 396
+0035 7F18              MOV     R7,#018H
+0037 120000      R     LCALL   _ReadMacReg
+003A 7E00              MOV     R6,#00H
+003C 900000      R     MOV     DPTR,#uiData
+003F EE                MOV     A,R6
+0040 F0                MOVX    @DPTR,A
+0041 A3                INC     DPTR
+0042 EF                MOV     A,R7
+0043 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 397
+0044 900000      R     MOV     DPTR,#uiData
+0047 E0                MOVX    A,@DPTR
+0048 FE                MOV     R6,A
+0049 A3                INC     DPTR
+004A E0                MOVX    A,@DPTR
+004B FF                MOV     R7,A
+004C C006              PUSH    AR6
+004E C007              PUSH    AR7
+0050 7F19              MOV     R7,#019H
+0052 120000      R     LCALL   _ReadMacReg
+0055 7E00              MOV     R6,#00H
+0057 EF                MOV     A,R7
+0058 7D00              MOV     R5,#00H
+005A FC                MOV     R4,A
+005B D007              POP     AR7
+005D D006              POP     AR6
+005F EE                MOV     A,R6
+0060 4C                ORL     A,R4
+0061 FE                MOV     R6,A
+0062 EF                MOV     A,R7
+0063 4D                ORL     A,R5
+0064 FF                MOV     R7,A
+0065 900000      R     MOV     DPTR,#uiData
+0068 EE                MOV     A,R6
+0069 F0                MOVX    @DPTR,A
+006A A3                INC     DPTR
+006B EF                MOV     A,R7
+006C F0                MOVX    @DPTR,A
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 30  
+
+                                           ; SOURCE LINE # 399
+006D 900000      R     MOV     DPTR,#uiData
+0070 E0                MOVX    A,@DPTR
+0071 FE                MOV     R6,A
+0072 A3                INC     DPTR
+0073 E0                MOVX    A,@DPTR
+0074 FF                MOV     R7,A
+                                           ; SOURCE LINE # 400
+0075         ?C0038:
+0075 22                RET     
+             ; FUNCTION _ReadPhyReg (END)
+
+             ; FUNCTION _WriteCtrReg (BEGIN)
+                                           ; SOURCE LINE # 415
+0000 900000      R     MOV     DPTR,#bytAddress
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+0005 900000      R     MOV     DPTR,#bytData
+0008 ED                MOV     A,R5
+0009 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 418
+000A 900000      R     MOV     DPTR,#bytAddress
+000D E0                MOVX    A,@DPTR
+000E FF                MOV     R7,A
+000F EF                MOV     A,R7
+0010 D3                SETB    C
+0011 941F              SUBB    A,#01FH
+0013 4003              JC      ?C0039
+                                           ; SOURCE LINE # 419
+0015 7F01              MOV     R7,#01H
+0017 22                RET     
+                                           ; SOURCE LINE # 420
+0018         ?C0039:
+                                           ; SOURCE LINE # 422
+0018 900000      R     MOV     DPTR,#bytAddress
+001B E0                MOVX    A,@DPTR
+001C FF                MOV     R7,A
+001D EF                MOV     A,R7
+001E 4440              ORL     A,#040H
+0020 FF                MOV     R7,A
+0021 900000      R     MOV     DPTR,#bytAddress
+0024 EF                MOV     A,R7
+0025 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 423
+0026 7F00              MOV     R7,#00H
+0028 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 425
+002B 7B01              MOV     R3,#01H
+002D 7A00        R     MOV     R2,#HIGH bytAddress
+002F 7900        R     MOV     R1,#LOW bytAddress
+0031 7D01              MOV     R5,#01H
+0033 7C00              MOV     R4,#00H
+0035 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 426
+0038 7B01              MOV     R3,#01H
+003A 7A00        R     MOV     R2,#HIGH bytData
+003C 7900        R     MOV     R1,#LOW bytData
+003E 7D01              MOV     R5,#01H
+0040 7C00              MOV     R4,#00H
+0042 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 428
+0045 7F01              MOV     R7,#01H
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 31  
+
+0047 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 430
+004A 7F00              MOV     R7,#00H
+                                           ; SOURCE LINE # 431
+004C         ?C0040:
+004C 22                RET     
+             ; FUNCTION _WriteCtrReg (END)
+
+             ; FUNCTION _ReadMacBuffer (BEGIN)
+                                           ; SOURCE LINE # 446
+0000 900000      R     MOV     DPTR,#bytBuffer
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#byt_length
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 450
+000E 900000      R     MOV     DPTR,#bytOpcode
+0011 743A              MOV     A,#03AH
+0013 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 452
+0014 7F00              MOV     R7,#00H
+0016 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 454
+0019 7B01              MOV     R3,#01H
+001B 7A00        R     MOV     R2,#HIGH bytOpcode
+001D 7900        R     MOV     R1,#LOW bytOpcode
+001F 7D01              MOV     R5,#01H
+0021 7C00              MOV     R4,#00H
+0023 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 455
+0026 900000      R     MOV     DPTR,#bytBuffer
+0029 120000      E     LCALL   ?C?PLDXDATA
+002C 900000      R     MOV     DPTR,#byt_length
+002F E0                MOVX    A,@DPTR
+0030 FC                MOV     R4,A
+0031 A3                INC     DPTR
+0032 E0                MOVX    A,@DPTR
+0033 FD                MOV     R5,A
+0034 120000      R     LCALL   _spiRxBuffer
+0037 900000      R     MOV     DPTR,#len
+003A EE                MOV     A,R6
+003B F0                MOVX    @DPTR,A
+003C A3                INC     DPTR
+003D EF                MOV     A,R7
+003E F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 457
+003F 7F01              MOV     R7,#01H
+0041 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 459
+0044 900000      R     MOV     DPTR,#len
+0047 E0                MOVX    A,@DPTR
+0048 FE                MOV     R6,A
+0049 A3                INC     DPTR
+004A E0                MOVX    A,@DPTR
+004B FF                MOV     R7,A
+                                           ; SOURCE LINE # 460
+004C         ?C0041:
+004C 22                RET     
+             ; FUNCTION _ReadMacBuffer (END)
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 32  
+
+
+             ; FUNCTION _WriteMacBuffer (BEGIN)
+                                           ; SOURCE LINE # 476
+0000 900000      R     MOV     DPTR,#bytBuffer
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#ui_len
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 480
+000E 900000      R     MOV     DPTR,#bytOpcode
+0011 747A              MOV     A,#07AH
+0013 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 482
+0014 7F00              MOV     R7,#00H
+0016 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 484
+0019 7B01              MOV     R3,#01H
+001B 7A00        R     MOV     R2,#HIGH bytOpcode
+001D 7900        R     MOV     R1,#LOW bytOpcode
+001F 7D01              MOV     R5,#01H
+0021 7C00              MOV     R4,#00H
+0023 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 485
+0026 900000      R     MOV     DPTR,#bytBuffer
+0029 120000      E     LCALL   ?C?PLDXDATA
+002C 900000      R     MOV     DPTR,#ui_len
+002F E0                MOVX    A,@DPTR
+0030 FC                MOV     R4,A
+0031 A3                INC     DPTR
+0032 E0                MOVX    A,@DPTR
+0033 FD                MOV     R5,A
+0034 120000      R     LCALL   _spiTxBuffer
+0037 900000      R     MOV     DPTR,#len
+003A EE                MOV     A,R6
+003B F0                MOVX    @DPTR,A
+003C A3                INC     DPTR
+003D EF                MOV     A,R7
+003E F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 487
+003F 7F01              MOV     R7,#01H
+0041 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 489
+0044 900000      R     MOV     DPTR,#len
+0047 E0                MOVX    A,@DPTR
+0048 FE                MOV     R6,A
+0049 A3                INC     DPTR
+004A E0                MOVX    A,@DPTR
+004B FF                MOV     R7,A
+                                           ; SOURCE LINE # 490
+004C         ?C0042:
+004C 22                RET     
+             ; FUNCTION _WriteMacBuffer (END)
+
+             ; FUNCTION _SetBitField (BEGIN)
+                                           ; SOURCE LINE # 506
+0000 900000      R     MOV     DPTR,#bytAddress
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+0005 900000      R     MOV     DPTR,#bytData
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 33  
+
+0008 ED                MOV     A,R5
+0009 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 508
+000A 900000      R     MOV     DPTR,#bytAddress
+000D E0                MOVX    A,@DPTR
+000E FF                MOV     R7,A
+000F EF                MOV     A,R7
+0010 D3                SETB    C
+0011 941F              SUBB    A,#01FH
+0013 4003              JC      ?C0043
+                                           ; SOURCE LINE # 509
+0015 7F01              MOV     R7,#01H
+0017 22                RET     
+                                           ; SOURCE LINE # 510
+0018         ?C0043:
+                                           ; SOURCE LINE # 512
+0018 900000      R     MOV     DPTR,#bytAddress
+001B E0                MOVX    A,@DPTR
+001C FF                MOV     R7,A
+001D EF                MOV     A,R7
+001E 4480              ORL     A,#080H
+0020 FF                MOV     R7,A
+0021 900000      R     MOV     DPTR,#bytAddress
+0024 EF                MOV     A,R7
+0025 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 514
+0026 7F00              MOV     R7,#00H
+0028 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 516
+002B 7B01              MOV     R3,#01H
+002D 7A00        R     MOV     R2,#HIGH bytAddress
+002F 7900        R     MOV     R1,#LOW bytAddress
+0031 7D01              MOV     R5,#01H
+0033 7C00              MOV     R4,#00H
+0035 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 517
+0038 7B01              MOV     R3,#01H
+003A 7A00        R     MOV     R2,#HIGH bytData
+003C 7900        R     MOV     R1,#LOW bytData
+003E 7D01              MOV     R5,#01H
+0040 7C00              MOV     R4,#00H
+0042 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 519
+0045 7F01              MOV     R7,#01H
+0047 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 521
+004A 7F00              MOV     R7,#00H
+                                           ; SOURCE LINE # 522
+004C         ?C0044:
+004C 22                RET     
+             ; FUNCTION _SetBitField (END)
+
+             ; FUNCTION _ClrBitField (BEGIN)
+                                           ; SOURCE LINE # 538
+0000 900000      R     MOV     DPTR,#bytAddress
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+0005 900000      R     MOV     DPTR,#bytData
+0008 ED                MOV     A,R5
+0009 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 540
+000A 900000      R     MOV     DPTR,#bytAddress
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 34  
+
+000D E0                MOVX    A,@DPTR
+000E FF                MOV     R7,A
+000F EF                MOV     A,R7
+0010 D3                SETB    C
+0011 941F              SUBB    A,#01FH
+0013 4003              JC      ?C0045
+                                           ; SOURCE LINE # 541
+0015 7F01              MOV     R7,#01H
+0017 22                RET     
+                                           ; SOURCE LINE # 542
+0018         ?C0045:
+                                           ; SOURCE LINE # 544
+0018 900000      R     MOV     DPTR,#bytAddress
+001B E0                MOVX    A,@DPTR
+001C FF                MOV     R7,A
+001D EF                MOV     A,R7
+001E 44A0              ORL     A,#0A0H
+0020 FF                MOV     R7,A
+0021 900000      R     MOV     DPTR,#bytAddress
+0024 EF                MOV     A,R7
+0025 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 546
+0026 7F00              MOV     R7,#00H
+0028 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 548
+002B 7B01              MOV     R3,#01H
+002D 7A00        R     MOV     R2,#HIGH bytAddress
+002F 7900        R     MOV     R1,#LOW bytAddress
+0031 7D01              MOV     R5,#01H
+0033 7C00              MOV     R4,#00H
+0035 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 549
+0038 7B01              MOV     R3,#01H
+003A 7A00        R     MOV     R2,#HIGH bytData
+003C 7900        R     MOV     R1,#LOW bytData
+003E 7D01              MOV     R5,#01H
+0040 7C00              MOV     R4,#00H
+0042 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 551
+0045 7F01              MOV     R7,#01H
+0047 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 553
+004A 7F00              MOV     R7,#00H
+                                           ; SOURCE LINE # 554
+004C         ?C0046:
+004C 22                RET     
+             ; FUNCTION _ClrBitField (END)
+
+             ; FUNCTION _BankSel (BEGIN)
+                                           ; SOURCE LINE # 569
+0000 900000      R     MOV     DPTR,#bank
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 571
+0005 900000      R     MOV     DPTR,#bank
+0008 E0                MOVX    A,@DPTR
+0009 FF                MOV     R7,A
+000A EF                MOV     A,R7
+000B D3                SETB    C
+000C 9403              SUBB    A,#03H
+000E 5034              JNC     ?C0048
+0010         ?C0047:
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 35  
+
+                                           ; SOURCE LINE # 574
+0010 7F1F              MOV     R7,#01FH
+0012 120000      R     LCALL   _ReadETHReg
+0015 900000      R     MOV     DPTR,#temp
+0018 EF                MOV     A,R7
+0019 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 575
+001A 900000      R     MOV     DPTR,#temp
+001D E0                MOVX    A,@DPTR
+001E FF                MOV     R7,A
+001F EF                MOV     A,R7
+0020 54FC              ANL     A,#0FCH
+0022 FF                MOV     R7,A
+0023 900000      R     MOV     DPTR,#temp
+0026 EF                MOV     A,R7
+0027 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 576
+0028 900000      R     MOV     DPTR,#temp
+002B E0                MOVX    A,@DPTR
+002C FF                MOV     R7,A
+002D 900000      R     MOV     DPTR,#bank
+0030 E0                MOVX    A,@DPTR
+0031 FE                MOV     R6,A
+0032 EF                MOV     A,R7
+0033 4E                ORL     A,R6
+0034 FF                MOV     R7,A
+0035 900000      R     MOV     DPTR,#temp
+0038 EF                MOV     A,R7
+0039 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 577
+003A 900000      R     MOV     DPTR,#temp
+003D E0                MOVX    A,@DPTR
+003E FD                MOV     R5,A
+003F 7F1F              MOV     R7,#01FH
+0041 120000      R     LCALL   _WriteCtrReg
+                                           ; SOURCE LINE # 578
+0044         ?C0048:
+0044 22                RET     
+             ; FUNCTION _BankSel (END)
+
+             ; FUNCTION ResetMac (BEGIN)
+                                           ; SOURCE LINE # 591
+                                           ; SOURCE LINE # 592
+0000 900000      R     MOV     DPTR,#bytOpcode
+0003 74FF              MOV     A,#0FFH
+0005 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 594
+0006 7F00              MOV     R7,#00H
+0008 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 596
+000B 7B01              MOV     R3,#01H
+000D 7A00        R     MOV     R2,#HIGH bytOpcode
+000F 7900        R     MOV     R1,#LOW bytOpcode
+0011 7D01              MOV     R5,#01H
+0013 7C00              MOV     R4,#00H
+0015 120000      R     LCALL   _spiTxBuffer
+                                           ; SOURCE LINE # 598
+0018 7F01              MOV     R7,#01H
+001A 120000      E     LCALL   _SS_Write
+                                           ; SOURCE LINE # 601
+001D 7FE8              MOV     R7,#0E8H
+001F 7E03              MOV     R6,#03H
+C51 COMPILER V9.03   ENC28J60                                                              07/02/2012 19:46:59 PAGE 36  
+
+0021 7D00              MOV     R5,#00H
+0023 7C00              MOV     R4,#00H
+0025 120000      E     LCALL   _?CyDelay
+                                           ; SOURCE LINE # 602
+0028         ?C0049:
+0028 22                RET     
+             ; FUNCTION ResetMac (END)
+
+             ; FUNCTION IsLinkUp (BEGIN)
+                                           ; SOURCE LINE # 620
+                                           ; SOURCE LINE # 621
+0000 7F11              MOV     R7,#011H
+0002 120000      R     LCALL   _ReadPhyReg
+0005 EF                MOV     A,R7
+0006 4E                ORL     A,R6
+0007 6004              JZ      ?C0050
+0009 7F01              MOV     R7,#01H
+000B 8002              SJMP    ?C0051
+000D         ?C0050:
+000D 7F00              MOV     R7,#00H
+000F         ?C0051:
+                                           ; SOURCE LINE # 622
+000F         ?C0052:
+000F 22                RET     
+             ; FUNCTION IsLinkUp (END)
+
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2076    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     82    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

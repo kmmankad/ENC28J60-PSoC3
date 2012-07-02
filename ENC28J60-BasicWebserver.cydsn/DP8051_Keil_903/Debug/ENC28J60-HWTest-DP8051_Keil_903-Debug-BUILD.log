@@ -1,0 +1,54 @@
+--------------- Build Started: 06/18/2012 12:26:32 Project: ENC28J60-HWTest, Configuration: DP8051 Keil 9.03 Debug ---------------
+cydsfit.exe "-.appdatapath" "C:\Users\Kartik\AppData\Local\Cypress Semiconductor\PSoC Creator\2.1" "-.fdsnotice" "-.fdswarpdepfile=warp_dependencies.txt" "-.fdselabdepfile=elab_dependencies.txt" "-.fdsbldfile=generated_files.txt" "-p" "D:\Electronics\PSoC\ENC28J60\Code\ENC28J60-HWTest.cydsn\ENC28J60-HWTest.cyprj" "-d" "CY8C3866AXI-040" "-s" "D:\Electronics\PSoC\ENC28J60\Code\ENC28J60-HWTest.cydsn\Generated_Source\PSoC3" "-w" "0" "--" "-yv2" "-w" "0" "-v3" "-ygs" "-q10" "-o2" "-.fftcfgtype=BE"
+Elaborating Design...
+HDL Generation ...
+Synthesis ...
+Place and Route ...
+Tech mapping ...
+Info: mpr.M0037: Unused pieces of the design have been optimized out. See the Tech mapping section of the report file for details. (App=cydsfit)
+Analog Placement ...
+Analog Routing ...
+Analog Code Generation ...
+Digital Placement ...
+Log: plm.M0038: The pin named SCLK(0) at location P0[0] prevents usage of special purposes: OpAmp:out. (App=cydsfit)
+Log: plm.M0038: The pin named MOSI(0) at location P0[1] prevents usage of special purposes: OpAmp:out. (App=cydsfit)
+Log: plm.M0040: The pin named MISO(0) at location P0[2] prevents a direct input connection to an Opamp. (App=cydsfit)
+Log: plm.M0040: The pin named RESET(0) at location P0[5] prevents a direct input connection to an Opamp. (App=cydsfit)
+Log: plm.M0039: The pin named SS(0) at location P0[6] prevents usage of the high current (2mA) feature of an IDAC. (App=cydsfit)
+Info: plm.M0037: ENC28J60-HWTest.rpt: 
+      Certain internal analog resources use the following pins for preferred routing: P0[0], P0[1], P0[2], P0[5], P0[6].
+      Please check the "Final Placement Details" section of the report file (ENC28J60-HWTest.rpt) to see what resources are impacted by your pin selections.
+     (File=D:\Electronics\PSoC\ENC28J60\Code\ENC28J60-HWTest.cydsn\ENC28J60-HWTest.rpt(1))
+Digital Routing ...
+Bitstream Generation ...
+Static timing analysis ...
+API Generation ...
+Dependency Generation ...
+Clean Temporary Files ...
+c51.exe .\main.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\main.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\main.obj)
+c51.exe .\enc28j60.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\enc28j60.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\enc28j60.obj)
+c51.exe .\Generated_Source\PSoC3\SPIM.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SPIM.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SPIM.obj)
+c51.exe .\Generated_Source\PSoC3\SPIM_PM.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SPIM_PM.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SPIM_PM.obj)
+c51.exe .\Generated_Source\PSoC3\SPIM_INT.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SPIM_INT.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SPIM_INT.obj)
+c51.exe .\Generated_Source\PSoC3\SS.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SS.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SS.obj)
+c51.exe .\Generated_Source\PSoC3\PACKET.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\PACKET.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\PACKET.obj)
+c51.exe .\Generated_Source\PSoC3\SPIM_IntClock.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SPIM_IntClock.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SPIM_IntClock.obj)
+Ax51.exe .\Generated_Source\PSoC3\CyBootAsmKeil.a51 NOCO MACRO DB PR(.\DP8051_Keil_903\Debug/CyBootAsmKeil.lst) CASE EP INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CyBootAsmKeil.obj)
+c51.exe .\Generated_Source\PSoC3\CyDmac.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\CyDmac.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CyDmac.obj)
+c51.exe .\Generated_Source\PSoC3\CyFlash.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\CyFlash.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CyFlash.obj)
+c51.exe .\Generated_Source\PSoC3\CyLib.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\CyLib.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CyLib.obj)
+Ax51.exe .\Generated_Source\PSoC3\cymem.a51 NOCO MACRO DB PR(.\DP8051_Keil_903\Debug/cymem.lst) CASE EP INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\cymem.obj)
+c51.exe .\Generated_Source\PSoC3\cyPm.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\cyPm.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\cyPm.obj)
+c51.exe .\Generated_Source\PSoC3\CySpc.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\CySpc.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CySpc.obj)
+c51.exe .\Generated_Source\PSoC3\cyutils.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\cyutils.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\cyutils.obj)
+Ax51.exe .\Generated_Source\PSoC3\KeilStart.a51 NOCO MACRO DB PR(.\DP8051_Keil_903\Debug/KeilStart.lst) CASE EP INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\KeilStart.obj)
+c51.exe .\Generated_Source\PSoC3\cyfitter_cfg.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\cyfitter_cfg.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\cyfitter_cfg.obj)
+LIBX51.exe TRANSFER '.\DP8051_Keil_903\Debug\SPIM.obj', '.\DP8051_Keil_903\Debug\SPIM_PM.obj', '.\DP8051_Keil_903\Debug\SPIM_INT.obj', '.\DP8051_Keil_903\Debug\SS.obj', '.\DP8051_Keil_903\Debug\PACKET.obj', '.\DP8051_Keil_903\Debug\SPIM_IntClock.obj', '.\DP8051_Keil_903\Debug\CyBootAsmKeil.obj', '.\DP8051_Keil_903\Debug\CyDmac.obj', '.\DP8051_Keil_903\Debug\CyFlash.obj', '.\DP8051_Keil_903\Debug\CyLib.obj', '.\DP8051_Keil_903\Debug\cymem.obj', '.\DP8051_Keil_903\Debug\cyPm.obj', '.\DP8051_Keil_903\Debug\CySpc.obj', '.\DP8051_Keil_903\Debug\cyutils.obj', '.\DP8051_Keil_903\Debug\KeilStart.obj', '.\DP8051_Keil_903\Debug\cyfitter_cfg.obj' TO '.\DP8051_Keil_903\Debug\ENC28J60-HWTest.lib'
+LX51.exe '.\DP8051_Keil_903\Debug\main.obj', '.\DP8051_Keil_903\Debug\enc28j60.obj', '.\DP8051_Keil_903\Debug\ENC28J60-HWTest.lib', 'C:\Program Files (x86)\Cypress\PSoC Creator\2.1\PSoC Creator\psoc\content\cycomponentlibrary\CyComponentLibrary.cylib\DP8051\DP8051_Keil_903\Debug\CyComponentLibrary.lib'  TO '.\DP8051_Keil_903\Debug\ENC28J60-HWTest.omf' PR(.\DP8051_Keil_903\Debug\ENC28J60-HWTest.map) IX CODE DW(16) RU CL(XDATA(X:0x0000-X:0x1FFF)) CL(CODE(C:0x0000-C:0xFFFF)) CL(CONST(C:0x0000-C:0xFFFF))
+Program Size: data=23.0 xdata=363 const=612 code=3303
+OHx51.exe ENC28J60-HWTest.omf HEXFILE(ENC28J60-HWTest.ihx)
+c8051-elf-omf2elf.exe ENC28J60-HWTest.omf ENC28J60-HWTest.elf
+cyhextool -o .\DP8051_Keil_903\Debug\ENC28J60-HWTest.hex -f .\DP8051_Keil_903\Debug\ENC28J60-HWTest.ihx -prot .\Generated_Source\PSoC3\protect.hex -id 1E028069 -a EEPROM=90200000:800,PROGRAM=00000000:10000,CONFIG=80000000:2000,PROTECT=90400000:40 -meta 0301 -cunv 00000005 -wonv AFAC90BC -ecc OFF
+Flash used: 3915 of 65536 bytes (6.0 %).
+SRAM used: 363 of 8192 bytes (4.4 %).
+--------------- Build Succeeded: 06/18/2012 12:26:53 ---------------

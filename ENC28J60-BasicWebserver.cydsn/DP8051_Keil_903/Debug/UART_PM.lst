@@ -1,0 +1,355 @@
+C51 COMPILER V9.03   UART_PM                                                               06/19/2012 10:21:29 PAGE 1   
+
+
+C51 COMPILER V9.03, COMPILATION OF MODULE UART_PM
+OBJECT MODULE PLACED IN .\DP8051_Keil_903\Debug\UART_PM.obj
+COMPILER INVOKED BY: C:\Program Files (x86)\Cypress\PSoC Creator\2.1\PSoC Creator\import\keil\pk51\9.03\C51\BIN\c51.exe 
+                    -.\Generated_Source\PSoC3\UART_PM.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\UART_PM.lst) CD DB NOIP OT(0,
+                    -SIZE) INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\UART_PM.obj)
+
+line level    source
+
+   1          /*******************************************************************************
+   2          * File Name: UART_PM.c
+   3          * Version 2.20
+   4          *
+   5          * Description:
+   6          *  This file provides Sleep/WakeUp APIs functionality.
+   7          *
+   8          * Note:
+   9          *
+  10          ********************************************************************************
+  11          * Copyright 2008-2012, Cypress Semiconductor Corporation.  All rights reserved.
+  12          * You may use this file only in accordance with the license, terms, conditions, 
+  13          * disclaimers, and limitations in the end user license agreement accompanying 
+  14          * the software package with which this file was provided.
+  15          *******************************************************************************/
+  16          
+  17          #include "UART.h"
+  18          
+  19          
+  20          /***************************************
+  21          * Local data allocation
+  22          ***************************************/
+  23          
+  24          static UART_BACKUP_STRUCT  UART_backup =
+  25          {
+  26              /* enableState - disabled */
+  27              0u,
+  28          };        
+  29          
+  30          
+  31          
+  32          /*******************************************************************************
+  33          * Function Name: UART_SaveConfig
+  34          ********************************************************************************
+  35          *
+  36          * Summary:
+  37          *  Saves the current user configuration.
+  38          *
+  39          * Parameters:
+  40          *  None.
+  41          *
+  42          * Return:
+  43          *  None.
+  44          *
+  45          * Global Variables:
+  46          *  UART_backup - modified when non-retention registers are saved.
+  47          *
+  48          * Reentrant:
+  49          *  No.
+  50          *
+  51          *******************************************************************************/
+  52          void UART_SaveConfig(void)
+  53          {
+C51 COMPILER V9.03   UART_PM                                                               06/19/2012 10:21:29 PAGE 2   
+
+  54   1          #if (CY_UDB_V0)
+              
+                      #if(UART_CONTROL_REG_REMOVED == 0u)
+                          UART_backup.cr = UART_CONTROL_REG;
+                      #endif /* End UART_CONTROL_REG_REMOVED */
+              
+                      #if( (UART_RX_ENABLED) || (UART_HD_ENABLED) )
+                          UART_backup.rx_period = UART_RXBITCTR_PERIOD_REG;
+                          UART_backup.rx_mask = UART_RXSTATUS_MASK_REG;
+                          #if (UART_RXHW_ADDRESS_ENABLED)
+                              UART_backup.rx_addr1 = UART_RXADDRESS1_REG;
+                              UART_backup.rx_addr2 = UART_RXADDRESS2_REG;
+                          #endif /* End UART_RXHW_ADDRESS_ENABLED */
+                      #endif /* End UART_RX_ENABLED | UART_HD_ENABLED*/
+              
+                      #if(UART_TX_ENABLED)
+                          #if(UART_TXCLKGEN_DP)
+                              UART_backup.tx_clk_ctr = UART_TXBITCLKGEN_CTR_REG;
+                              UART_backup.tx_clk_compl = UART_TXBITCLKTX_COMPLETE_REG;
+                          #else
+                              UART_backup.tx_period = UART_TXBITCTR_PERIOD_REG;
+                          #endif /*End UART_TXCLKGEN_DP */
+                          UART_backup.tx_mask = UART_TXSTATUS_MASK_REG;
+                      #endif /*End UART_TX_ENABLED */
+              
+                  
+                  #else /* CY_UDB_V1 */
+  81   1      
+  82   1              #if(UART_CONTROL_REG_REMOVED == 0u)
+                          UART_backup.cr = UART_CONTROL_REG;
+                      #endif /* End UART_CONTROL_REG_REMOVED */
+  85   1      
+  86   1          #endif  /* End CY_UDB_V0 */
+  87   1      }
+  88          
+  89          
+  90          /*******************************************************************************
+  91          * Function Name: UART_RestoreConfig
+  92          ********************************************************************************
+  93          *
+  94          * Summary:
+  95          *  Restores the current user configuration.
+  96          *
+  97          * Parameters:
+  98          *  None.
+  99          *
+ 100          * Return:
+ 101          *  None.
+ 102          *
+ 103          * Global Variables:
+ 104          *  UART_backup - used when non-retention registers are restored.
+ 105          *
+ 106          * Reentrant:
+ 107          *  No.
+ 108          *
+ 109          *******************************************************************************/
+ 110          void UART_RestoreConfig(void)
+ 111          {
+ 112   1      
+ 113   1          #if (CY_UDB_V0)
+              
+                      #if(UART_CONTROL_REG_REMOVED == 0u)
+C51 COMPILER V9.03   UART_PM                                                               06/19/2012 10:21:29 PAGE 3   
+
+                          UART_CONTROL_REG = UART_backup.cr;
+                      #endif /* End UART_CONTROL_REG_REMOVED */
+              
+                      #if( (UART_RX_ENABLED) || (UART_HD_ENABLED) )
+                          UART_RXBITCTR_PERIOD_REG = UART_backup.rx_period;
+                          UART_RXSTATUS_MASK_REG = UART_backup.rx_mask;
+                          #if (UART_RXHW_ADDRESS_ENABLED)
+                              UART_RXADDRESS1_REG = UART_backup.rx_addr1;
+                              UART_RXADDRESS2_REG = UART_backup.rx_addr2;
+                          #endif /* End UART_RXHW_ADDRESS_ENABLED */
+                      #endif  /* End (UART_RX_ENABLED) || (UART_HD_ENABLED) */
+              
+                      #if(UART_TX_ENABLED)
+                          #if(UART_TXCLKGEN_DP)
+                              UART_TXBITCLKGEN_CTR_REG = UART_backup.tx_clk_ctr;
+                              UART_TXBITCLKTX_COMPLETE_REG = UART_backup.tx_clk_compl;
+                          #else
+                              UART_TXBITCTR_PERIOD_REG = UART_backup.tx_period;
+                          #endif /*End UART_TXCLKGEN_DP */
+                          UART_TXSTATUS_MASK_REG = UART_backup.tx_mask;
+                      #endif /*End UART_TX_ENABLED */
+              
+                  #else /* CY_UDB_V1 */
+ 139   1      
+ 140   1              #if(UART_CONTROL_REG_REMOVED == 0u)
+                          UART_CONTROL_REG = UART_backup.cr;
+                      #endif /* End UART_CONTROL_REG_REMOVED */
+ 143   1      
+ 144   1          #endif  /* End CY_UDB_V0 */
+ 145   1      }
+ 146          
+ 147          
+ 148          /*******************************************************************************
+ 149          * Function Name: UART_Sleep
+ 150          ********************************************************************************
+ 151          *
+ 152          * Summary:
+ 153          *  Stops and saves the user configuration. Should be called 
+ 154          *  just prior to entering sleep.
+ 155          *  
+ 156          *
+ 157          * Parameters:
+ 158          *  None.
+ 159          *
+ 160          * Return:
+ 161          *  None.
+ 162          *
+ 163          * Global Variables:
+ 164          *  UART_backup - modified when non-retention registers are saved.
+ 165          *
+ 166          * Reentrant:
+ 167          *  No.
+ 168          *
+ 169          *******************************************************************************/
+ 170          void UART_Sleep(void)
+ 171          {
+ 172   1      
+ 173   1          #if(UART_RX_ENABLED || UART_HD_ENABLED)
+                      if((UART_RXSTATUS_ACTL_REG  & UART_INT_ENABLE) != 0u) 
+                      {
+                          UART_backup.enableState = 1u;
+                      }
+C51 COMPILER V9.03   UART_PM                                                               06/19/2012 10:21:29 PAGE 4   
+
+                      else
+                      {
+                          UART_backup.enableState = 0u;
+                      }
+                  #else
+ 183   1              if((UART_TXSTATUS_ACTL_REG  & UART_INT_ENABLE) !=0u)
+ 184   1              {
+ 185   2                  UART_backup.enableState = 1u;
+ 186   2              }
+ 187   1              else
+ 188   1              {
+ 189   2                  UART_backup.enableState = 0u;
+ 190   2              }
+ 191   1          #endif /* End UART_RX_ENABLED || UART_HD_ENABLED*/
+ 192   1      
+ 193   1          UART_Stop();
+ 194   1          UART_SaveConfig();
+ 195   1      }
+ 196          
+ 197          
+ 198          /*******************************************************************************
+ 199          * Function Name: UART_Wakeup
+ 200          ********************************************************************************
+ 201          *
+ 202          * Summary:
+ 203          *  Restores and enables the user configuration. Should be called
+ 204          *  just after awaking from sleep.
+ 205          *
+ 206          * Parameters:
+ 207          *  None.
+ 208          *
+ 209          * Return:
+ 210          *  None.
+ 211          *
+ 212          * Global Variables:
+ 213          *  UART_backup - used when non-retention registers are restored.
+ 214          *
+ 215          * Reentrant:
+ 216          *  No.
+ 217          *
+ 218          *******************************************************************************/
+ 219          void UART_Wakeup(void)
+ 220          {
+ 221   1          UART_RestoreConfig();
+ 222   1          #if( (UART_RX_ENABLED) || (UART_HD_ENABLED) )
+                      UART_ClearRxBuffer();
+                  #endif /* End (UART_RX_ENABLED) || (UART_HD_ENABLED) */
+ 225   1          #if(UART_TX_ENABLED || UART_HD_ENABLED)
+ 226   1              UART_ClearTxBuffer();
+ 227   1          #endif /* End UART_TX_ENABLED || UART_HD_ENABLED */
+ 228   1      
+ 229   1          if(UART_backup.enableState != 0u)
+ 230   1          {
+ 231   2              UART_Enable();
+ 232   2          } 
+ 233   1      }
+ 234          
+ 235          
+ 236          /* [] END OF FILE */
+C51 COMPILER V9.03   UART_PM                                                               06/19/2012 10:21:29 PAGE 5   
+
+ASSEMBLY LISTING OF GENERATED OBJECT CODE
+
+
+             ; FUNCTION UART_SaveConfig (BEGIN)
+                                           ; SOURCE LINE # 52
+                                           ; SOURCE LINE # 53
+                                           ; SOURCE LINE # 87
+0000         ?C0001:
+0000 22                RET     
+             ; FUNCTION UART_SaveConfig (END)
+
+             ; FUNCTION UART_RestoreConfig (BEGIN)
+                                           ; SOURCE LINE # 110
+                                           ; SOURCE LINE # 111
+                                           ; SOURCE LINE # 145
+0000         ?C0002:
+0000 22                RET     
+             ; FUNCTION UART_RestoreConfig (END)
+
+             ; FUNCTION UART_Sleep (BEGIN)
+                                           ; SOURCE LINE # 170
+                                           ; SOURCE LINE # 171
+                                           ; SOURCE LINE # 183
+0000 906493            MOV     DPTR,#06493H
+0003 E0                MOVX    A,@DPTR
+0004 FF                MOV     R7,A
+0005 EF                MOV     A,R7
+0006 5410              ANL     A,#010H
+0008 FF                MOV     R7,A
+0009 7E00              MOV     R6,#00H
+000B EF                MOV     A,R7
+000C 4E                ORL     A,R6
+000D 6008              JZ      ?C0003
+                                           ; SOURCE LINE # 184
+                                           ; SOURCE LINE # 185
+000F 900000      R     MOV     DPTR,#UART_backup
+0012 7401              MOV     A,#01H
+0014 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 186
+0015 8005              SJMP    ?C0004
+0017         ?C0003:
+                                           ; SOURCE LINE # 188
+                                           ; SOURCE LINE # 189
+0017 900000      R     MOV     DPTR,#UART_backup
+001A E4                CLR     A
+001B F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 190
+001C         ?C0004:
+                                           ; SOURCE LINE # 193
+001C 120000      E     LCALL   UART_Stop
+                                           ; SOURCE LINE # 194
+001F 120000      R     LCALL   UART_SaveConfig
+                                           ; SOURCE LINE # 195
+0022         ?C0005:
+0022 22                RET     
+             ; FUNCTION UART_Sleep (END)
+
+             ; FUNCTION UART_Wakeup (BEGIN)
+                                           ; SOURCE LINE # 219
+                                           ; SOURCE LINE # 220
+                                           ; SOURCE LINE # 221
+0000 120000      R     LCALL   UART_RestoreConfig
+C51 COMPILER V9.03   UART_PM                                                               06/19/2012 10:21:29 PAGE 6   
+
+                                           ; SOURCE LINE # 226
+0003 120000      E     LCALL   UART_ClearTxBuffer
+                                           ; SOURCE LINE # 229
+0006 900000      R     MOV     DPTR,#UART_backup
+0009 E0                MOVX    A,@DPTR
+000A FF                MOV     R7,A
+000B EF                MOV     A,R7
+000C 6003              JZ      ?C0007
+                                           ; SOURCE LINE # 230
+                                           ; SOURCE LINE # 231
+000E 120000      E     LCALL   UART_Enable
+                                           ; SOURCE LINE # 232
+0011         ?C0006:
+                                           ; SOURCE LINE # 233
+0011         ?C0007:
+0011 22                RET     
+             ; FUNCTION UART_Wakeup (END)
+
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     55    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      2    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

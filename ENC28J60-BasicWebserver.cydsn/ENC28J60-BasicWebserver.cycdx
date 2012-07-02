@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<blockRegMap version="1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://cypress.com/xsd/cyblockregmap cyblockregmap.xsd" xmlns="http://cypress.com/xsd/cyblockregmap">
+  <block name="RESET" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+  <block name="ZeroTerminal_1" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+  <block name="OneTerminal_1" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+  <block name="LCD" BASE="0x0" SIZE="0x0" desc="" visible="true">
+    <block name="LCDPort" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+  </block>
+  <block name="DieTemp" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+  <block name="SS" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+  <block name="SPIM" BASE="0x0" SIZE="0x0" desc="" visible="true">
+    <block name="VirtualMux_2" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+    <block name="VirtualMux_3" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+    <block name="ZeroTerminal_1" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+    <block name="VirtualMux_1" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+    <block name="IntClock" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+    <block name="BSPIM" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+  </block>
+  <block name="SCLK" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+  <block name="MISO" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+  <block name="MOSI" BASE="0x0" SIZE="0x0" desc="" visible="true" />
+</blockRegMap>

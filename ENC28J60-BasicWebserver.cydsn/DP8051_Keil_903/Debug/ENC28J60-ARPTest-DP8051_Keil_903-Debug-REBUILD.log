@@ -1,0 +1,113 @@
+--------------- Rebuild Started: 06/28/2012 19:33:55 Project: ENC28J60-ARPTest, Configuration: DP8051 Keil 9.03 Debug ---------------
+Deleting file ".\DP8051_Keil_903\Debug\main.obj"
+Deleting file ".\DP8051_Keil_903\Debug\enc28j60.obj"
+Deleting file ".\DP8051_Keil_903\Debug\IPStack.obj"
+Deleting file ".\DP8051_Keil_903\Debug\ARP.obj"
+Deleting file ".\DP8051_Keil_903\Debug\UDP.obj"
+Deleting file ".\DP8051_Keil_903\Debug\Ping.obj"
+Deleting file ".\DP8051_Keil_903\Debug\Webserver.obj"
+Deleting file ".\DP8051_Keil_903\Debug\SPIM.obj"
+Deleting file ".\DP8051_Keil_903\Debug\SPIM_PM.obj"
+Deleting file ".\DP8051_Keil_903\Debug\SPIM_INT.obj"
+Deleting file ".\DP8051_Keil_903\Debug\SS.obj"
+Deleting file ".\DP8051_Keil_903\Debug\SPIM_IntClock.obj"
+Deleting file ".\DP8051_Keil_903\Debug\CyBootAsmKeil.obj"
+Deleting file ".\DP8051_Keil_903\Debug\CyDmac.obj"
+Deleting file ".\DP8051_Keil_903\Debug\CyFlash.obj"
+Deleting file ".\DP8051_Keil_903\Debug\CyLib.obj"
+Deleting file ".\DP8051_Keil_903\Debug\cymem.obj"
+Deleting file ".\DP8051_Keil_903\Debug\cyPm.obj"
+Deleting file ".\DP8051_Keil_903\Debug\CySpc.obj"
+Deleting file ".\DP8051_Keil_903\Debug\cyutils.obj"
+Deleting file ".\DP8051_Keil_903\Debug\KeilStart.obj"
+Deleting file ".\DP8051_Keil_903\Debug\LCD.obj"
+Deleting file ".\DP8051_Keil_903\Debug\LCD_PM.obj"
+Deleting file ".\DP8051_Keil_903\Debug\LCD_LCDPort.obj"
+Deleting file ".\DP8051_Keil_903\Debug\cyfitter_cfg.obj"
+Deleting file ".\DP8051_Keil_903\Debug\ENC28J60-ARPTest.map"
+Deleting file ".\ENC28J60-ARPTest.cycdx"
+Deleting file ".\ENC28J60-ARPTest.rpt"
+Deleting file ".\ENC28J60-ARPTest_timing.html"
+Deleting file ".\DP8051_Keil_903\Debug\.deps\C_FILE.P"
+Deleting file ".\DP8051_Keil_903\Debug\.deps\DP8051_C_FILE.P"
+Deleting file ".\DP8051_Keil_903\Debug\.deps\KEIL_8051_ASM_FILE.P"
+cydsfit.exe "-.appdatapath" "C:\Users\Kartik\AppData\Local\Cypress Semiconductor\PSoC Creator\2.1" "-.fdsnotice" "-.fdswarpdepfile=warp_dependencies.txt" "-.fdselabdepfile=elab_dependencies.txt" "-.fdsbldfile=generated_files.txt" "-p" "D:\Electronics\PSoC\ENC28J60_Working\Code\ENC28J60-ARPTest.cydsn\ENC28J60-ARPTest.cyprj" "-d" "CY8C3866AXI-040" "-s" "D:\Electronics\PSoC\ENC28J60_Working\Code\ENC28J60-ARPTest.cydsn\Generated_Source\PSoC3" "-w" "0" "--" "-yv2" "-w" "0" "-v3" "-ygs" "-q10" "-o2" "-.fftcfgtype=BE"
+Elaborating Design...
+HDL Generation ...
+Synthesis ...
+Place and Route ...
+Tech mapping ...
+Info: mpr.M0037: Unused pieces of the design have been optimized out. See the Tech mapping section of the report file for details. (App=cydsfit)
+Analog Placement ...
+Analog Routing ...
+Analog Code Generation ...
+Digital Placement ...
+Log: plm.M0038: The pin named SCLK(0) at location P0[0] prevents usage of special purposes: OpAmp:out. (App=cydsfit)
+Log: plm.M0038: The pin named MOSI(0) at location P0[1] prevents usage of special purposes: OpAmp:out. (App=cydsfit)
+Log: plm.M0040: The pin named MISO(0) at location P0[2] prevents a direct input connection to an Opamp. (App=cydsfit)
+Log: plm.M0040: The pin named RESET(0) at location P0[5] prevents a direct input connection to an Opamp. (App=cydsfit)
+Log: plm.M0039: The pin named SS(0) at location P0[6] prevents usage of the high current (2mA) feature of an IDAC. (App=cydsfit)
+Info: plm.M0037: ENC28J60-ARPTest.rpt: 
+      Certain internal analog resources use the following pins for preferred routing: P0[0], P0[1], P0[2], P0[5], P0[6].
+      Please check the "Final Placement Details" section of the report file (ENC28J60-ARPTest.rpt) to see what resources are impacted by your pin selections.
+     (File=D:\Electronics\PSoC\ENC28J60_Working\Code\ENC28J60-ARPTest.cydsn\ENC28J60-ARPTest.rpt(1))
+Digital Routing ...
+Bitstream Generation ...
+Static timing analysis ...
+API Generation ...
+Dependency Generation ...
+Clean Temporary Files ...
+c51.exe .\main.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\main.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\main.obj)
+c51.exe .\enc28j60.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\enc28j60.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\enc28j60.obj)
+WARNING: .\enc28j60.c:209: not every exit path returns a value
+c51.exe .\IPStack.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\IPStack.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\IPStack.obj)
+WARNING: .\IPStack.c:147: not every exit path returns a value
+c51.exe .\ARP.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\ARP.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\ARP.obj)
+c51.exe .\UDP.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\UDP.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\UDP.obj)
+c51.exe .\Ping.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\Ping.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\Ping.obj)
+c51.exe .\Webserver.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\Webserver.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\Webserver.obj)
+WARNING: .\Webserver.c:18: missing return-expression
+WARNING: .\Webserver.c:16: 'PortNum': unreferenced local variable
+WARNING: .\Webserver.c:16: 'PacketBuffer': unreferenced local variable
+WARNING: .\Webserver.c:21: missing return-expression
+WARNING: .\Webserver.c:19: 'webpage': unreferenced local variable
+WARNING: .\Webserver.c:19: 'PacketBuffer': unreferenced local variable
+WARNING: .\Webserver.c:18: missing return value
+WARNING: .\Webserver.c:21: missing return value
+c51.exe .\Generated_Source\PSoC3\SPIM.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SPIM.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SPIM.obj)
+c51.exe .\Generated_Source\PSoC3\SPIM_PM.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SPIM_PM.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SPIM_PM.obj)
+c51.exe .\Generated_Source\PSoC3\SPIM_INT.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SPIM_INT.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SPIM_INT.obj)
+c51.exe .\Generated_Source\PSoC3\SS.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SS.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SS.obj)
+c51.exe .\Generated_Source\PSoC3\SPIM_IntClock.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\SPIM_IntClock.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\SPIM_IntClock.obj)
+Ax51.exe .\Generated_Source\PSoC3\CyBootAsmKeil.a51 NOCO MACRO DB PR(.\DP8051_Keil_903\Debug/CyBootAsmKeil.lst) CASE EP INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CyBootAsmKeil.obj)
+c51.exe .\Generated_Source\PSoC3\CyDmac.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\CyDmac.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CyDmac.obj)
+c51.exe .\Generated_Source\PSoC3\CyFlash.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\CyFlash.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CyFlash.obj)
+c51.exe .\Generated_Source\PSoC3\CyLib.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\CyLib.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CyLib.obj)
+Ax51.exe .\Generated_Source\PSoC3\cymem.a51 NOCO MACRO DB PR(.\DP8051_Keil_903\Debug/cymem.lst) CASE EP INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\cymem.obj)
+c51.exe .\Generated_Source\PSoC3\cyPm.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\cyPm.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\cyPm.obj)
+c51.exe .\Generated_Source\PSoC3\CySpc.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\CySpc.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\CySpc.obj)
+c51.exe .\Generated_Source\PSoC3\cyutils.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\cyutils.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\cyutils.obj)
+Ax51.exe .\Generated_Source\PSoC3\KeilStart.a51 NOCO MACRO DB PR(.\DP8051_Keil_903\Debug/KeilStart.lst) CASE EP INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\KeilStart.obj)
+c51.exe .\Generated_Source\PSoC3\LCD.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\LCD.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\LCD.obj)
+c51.exe .\Generated_Source\PSoC3\LCD_PM.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\LCD_PM.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\LCD_PM.obj)
+c51.exe .\Generated_Source\PSoC3\LCD_LCDPort.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\LCD_LCDPort.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\LCD_LCDPort.obj)
+c51.exe .\Generated_Source\PSoC3\cyfitter_cfg.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\cyfitter_cfg.lst) CD DB NOIP "OT(0, Size)" INCDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\cyfitter_cfg.obj)
+LIBX51.exe TRANSFER '.\DP8051_Keil_903\Debug\SPIM.obj', '.\DP8051_Keil_903\Debug\SPIM_PM.obj', '.\DP8051_Keil_903\Debug\SPIM_INT.obj', '.\DP8051_Keil_903\Debug\SS.obj', '.\DP8051_Keil_903\Debug\SPIM_IntClock.obj', '.\DP8051_Keil_903\Debug\CyBootAsmKeil.obj', '.\DP8051_Keil_903\Debug\CyDmac.obj', '.\DP8051_Keil_903\Debug\CyFlash.obj', '.\DP8051_Keil_903\Debug\CyLib.obj', '.\DP8051_Keil_903\Debug\cymem.obj', '.\DP8051_Keil_903\Debug\cyPm.obj', '.\DP8051_Keil_903\Debug\CySpc.obj', '.\DP8051_Keil_903\Debug\cyutils.obj', '.\DP8051_Keil_903\Debug\KeilStart.obj', '.\DP8051_Keil_903\Debug\LCD.obj', '.\DP8051_Keil_903\Debug\LCD_PM.obj', '.\DP8051_Keil_903\Debug\LCD_LCDPort.obj', '.\DP8051_Keil_903\Debug\cyfitter_cfg.obj' TO '.\DP8051_Keil_903\Debug\ENC28J60-ARPTest.lib'
+LX51.exe '.\DP8051_Keil_903\Debug\main.obj', '.\DP8051_Keil_903\Debug\enc28j60.obj', '.\DP8051_Keil_903\Debug\IPStack.obj', '.\DP8051_Keil_903\Debug\ARP.obj', '.\DP8051_Keil_903\Debug\UDP.obj', '.\DP8051_Keil_903\Debug\Ping.obj', '.\DP8051_Keil_903\Debug\Webserver.obj', '.\DP8051_Keil_903\Debug\ENC28J60-ARPTest.lib', 'C:\Program Files (x86)\Cypress\PSoC Creator\2.1\PSoC Creator\psoc\content\cycomponentlibrary\CyComponentLibrary.cylib\DP8051\DP8051_Keil_903\Debug\CyComponentLibrary.lib'  TO '.\DP8051_Keil_903\Debug\ENC28J60-ARPTest.omf' PR(.\DP8051_Keil_903\Debug\ENC28J60-ARPTest.map) IX CODE DW(16) RU CL(XDATA(X:0x0000-X:0x1FFF)) CL(CODE(C:0x0000-C:0xFFFF)) CL(CONST(C:0x0000-C:0xFFFF))
+*** ERROR L104: MULTIPLE PUBLIC DEFINITIONS
+    SYMBOL:  routerMAC
+    MODULE:  .\DP8051_Keil_903\Debug\IPStack.obj (IPSTACK)
+   DEFINED:  .\DP8051_Keil_903\Debug\main.obj (MAIN)
+*** ERROR L104: MULTIPLE PUBLIC DEFINITIONS
+    SYMBOL:  dnsIP
+    MODULE:  .\DP8051_Keil_903\Debug\IPStack.obj (IPSTACK)
+   DEFINED:  .\DP8051_Keil_903\Debug\main.obj (MAIN)
+*** ERROR L104: MULTIPLE PUBLIC DEFINITIONS
+    SYMBOL:  deviceMAC
+    MODULE:  .\DP8051_Keil_903\Debug\IPStack.obj (IPSTACK)
+   DEFINED:  .\DP8051_Keil_903\Debug\main.obj (MAIN)
+*** ERROR L104: MULTIPLE PUBLIC DEFINITIONS
+    SYMBOL:  routerIP
+    MODULE:  .\DP8051_Keil_903\Debug\IPStack.obj (IPSTACK)
+   DEFINED:  .\DP8051_Keil_903\Debug\main.obj (MAIN)
+--------------- Rebuild Failed: 06/28/2012 19:34:15 ---------------

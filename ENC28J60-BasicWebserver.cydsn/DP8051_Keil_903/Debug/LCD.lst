@@ -1,0 +1,1719 @@
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 1   
+
+
+C51 COMPILER V9.03, COMPILATION OF MODULE LCD
+OBJECT MODULE PLACED IN .\DP8051_Keil_903\Debug\LCD.obj
+COMPILER INVOKED BY: C:\Program Files (x86)\Cypress\PSoC Creator\2.1\PSoC Creator\import\keil\pk51\9.03\C51\BIN\c51.exe 
+                    -.\Generated_Source\PSoC3\LCD.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\LCD.lst) CD DB NOIP OT(0,SIZE) IN
+                    -CDIR(Generated_Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\LCD.obj)
+
+line level    source
+
+   1          /*******************************************************************************
+   2          * File Name: LCD.c
+   3          * Version 1.60
+   4          *
+   5          * Description:
+   6          *  This file provides source code for the Character LCD component's API.
+   7          *
+   8          * Note:
+   9          *
+  10          ********************************************************************************
+  11          * Copyright 2008-2012, Cypress Semiconductor Corporation.  All rights reserved.
+  12          * You may use this file only in accordance with the license, terms, conditions,
+  13          * disclaimers, and limitations in the end user license agreement accompanying
+  14          * the software package with which this file was provided.
+  15          *******************************************************************************/
+  16          
+  17          #include "CyLib.h"
+  18          #include "LCD.h"
+  19          
+  20          
+  21          void LCD_Init(void) ;
+  22          void LCD_Enable(void) ;
+  23          
+  24          
+  25          uint8 LCD_enableState = 0u;
+  26          
+  27          uint8 LCD_initVar = 0u;
+  28          
+  29          char8 const CYCODE LCD_hex[16u] = "0123456789ABCDEF";
+  30          
+  31          extern uint8 const CYCODE LCD_customFonts[];
+  32          
+  33          
+  34          /*******************************************************************************
+  35          * Function Name: LCD_Init
+  36          ********************************************************************************
+  37          *
+  38          * Summary:
+  39          *  Perform initialization required for components normal work.
+  40          *  This function initializes the LCD hardware module as follows:
+  41          *        Enable 4-bit interface
+  42          *        Clear the display
+  43          *        Enable auto cursor increment
+  44          *        Resets the cursor to start position
+  45          *  Also loads custom character set to LCD if it was defined in the customizer.
+  46          *
+  47          * Parameters:
+  48          *  None.
+  49          *
+  50          * Return:
+  51          *  None.
+  52          *
+  53          * Reentrant:
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 2   
+
+  54          *  No.
+  55          *
+  56          *******************************************************************************/
+  57          void LCD_Init(void) 
+  58          {
+  59   1          /* INIT CODE */
+  60   1          CyDelay(40u);                                                        /* Delay 40 ms */
+  61   1          LCD_WrCntrlNib(LCD_DISPLAY_8_BIT_INIT);   /* Selects 8-bit mode */
+  62   1          CyDelay(5u);                                                         /* Delay 5 ms */
+  63   1          LCD_WrCntrlNib(LCD_DISPLAY_8_BIT_INIT);   /* Selects 8-bit mode */
+  64   1          CyDelay(15u);                                                        /* Delay 15 ms */
+  65   1          LCD_WrCntrlNib(LCD_DISPLAY_8_BIT_INIT);   /* Selects 8-bit mode */
+  66   1          CyDelay(1u);                                                         /* Delay 1 ms */
+  67   1          LCD_WrCntrlNib(LCD_DISPLAY_4_BIT_INIT);   /* Selects 4-bit mode */
+  68   1          CyDelay(5u);                                                         /* Delay 5 ms */
+  69   1      
+  70   1          LCD_WriteControl(LCD_CURSOR_AUTO_INCR_ON);    /* Incr Cursor After Writes */
+  71   1          LCD_WriteControl(LCD_DISPLAY_CURSOR_ON);      /* Turn Display, Cursor ON */
+  72   1          LCD_WriteControl(LCD_DISPLAY_2_LINES_5x10);   /* 2 Lines by 5x10 Characters */
+  73   1          LCD_WriteControl(LCD_DISPLAY_CURSOR_OFF);     /* Turn Display, Cursor OFF */
+  74   1          LCD_WriteControl(LCD_CLEAR_DISPLAY);          /* Clear LCD Screen */
+  75   1          LCD_WriteControl(LCD_DISPLAY_ON_CURSOR_OFF);  /* Turn Display ON, Cursor OFF */
+  76   1          LCD_WriteControl(LCD_RESET_CURSOR_POSITION);  /* Set Cursor to 0,0 */
+  77   1          CyDelay(5u);
+  78   1      
+  79   1          #if(LCD_CUSTOM_CHAR_SET != LCD_NONE)
+                      LCD_LoadCustomFonts(LCD_customFonts);
+                  #endif /* LCD_CUSTOM_CHAR_SET != LCD_NONE */
+  82   1      }
+  83          
+  84          
+  85          /*******************************************************************************
+  86          * Function Name: LCD_Enable
+  87          ********************************************************************************
+  88          *
+  89          * Summary:
+  90          *  Turns on the display.
+  91          *
+  92          * Parameters:
+  93          *  None.
+  94          *
+  95          * Return:
+  96          *  None.
+  97          *
+  98          * Reentrant:
+  99          *  No.
+ 100          *
+ 101          * Theory:
+ 102          *  This finction has no effect when it called first time as
+ 103          *  LCD_Init() turns on the LCD.
+ 104          *
+ 105          *******************************************************************************/
+ 106          void LCD_Enable(void) 
+ 107          {
+ 108   1          LCD_DisplayOn();
+ 109   1          LCD_enableState = 1u;
+ 110   1      }
+ 111          
+ 112          
+ 113          /*******************************************************************************
+ 114          * Function Name: LCD_Start
+ 115          ********************************************************************************
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 3   
+
+ 116          *
+ 117          * Summary:
+ 118          *  Perform initialization required for components normal work.
+ 119          *  This function initializes the LCD hardware module as follows:
+ 120          *        Enable 4-bit interface
+ 121          *        Clear the display
+ 122          *        Enable auto cursor increment
+ 123          *        Resets the cursor to start position
+ 124          *  Also loads custom character set to LCD if it was defined in the customizer.
+ 125          *  If it was not the first call in this project then it just turns on the
+ 126          *  display
+ 127          *
+ 128          *
+ 129          * Parameters:
+ 130          *  LCD_initVar - global variable.
+ 131          *
+ 132          * Return:
+ 133          *  LCD_initVar - global variable.
+ 134          *
+ 135          * Reentrant:
+ 136          *  No.
+ 137          *
+ 138          *******************************************************************************/
+ 139          void LCD_Start() 
+ 140          {
+ 141   1          /* If not initialized then perform initialization */
+ 142   1          if(LCD_initVar == 0u)
+ 143   1          {
+ 144   2              LCD_Init();
+ 145   2              LCD_initVar = 1u;
+ 146   2          }
+ 147   1      
+ 148   1          /* Turn on the LCD */
+ 149   1          LCD_Enable();
+ 150   1      }
+ 151          
+ 152          
+ 153          /*******************************************************************************
+ 154          * Function Name: LCD_Stop
+ 155          ********************************************************************************
+ 156          *
+ 157          * Summary:
+ 158          *  Turns off the display of the LCD screen.
+ 159          *
+ 160          * Parameters:
+ 161          *  None.
+ 162          *
+ 163          * Return:
+ 164          *  None.
+ 165          *
+ 166          * Reentrant:
+ 167          *  No.
+ 168          *
+ 169          *******************************************************************************/
+ 170          void LCD_Stop() 
+ 171          {
+ 172   1          /* Calls LCD Off Macro */
+ 173   1          LCD_DisplayOff();
+ 174   1          LCD_enableState = 0u;
+ 175   1      }
+ 176          
+ 177          
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 4   
+
+ 178          /*******************************************************************************
+ 179          *  Function Name: LCD_Position
+ 180          ********************************************************************************
+ 181          *
+ 182          * Summary:
+ 183          *  Moves active cursor location to a point specified by the input arguments
+ 184          *
+ 185          * Parameters:
+ 186          *  row:     Specific row of LCD module to be written
+ 187          *  column:  Column of LCD module to be written
+ 188          *
+ 189          * Return:
+ 190          *  None.
+ 191          *
+ 192          * Note:
+ 193          *  This only applies for LCD displays which use the 2X40 address mode.
+ 194          *  This results in Row 2 offset from row one by 0x28.
+ 195          *  When there are more than 2 rows, each row must be fewer than 20 characters.
+ 196          *
+ 197          *******************************************************************************/
+ 198          void LCD_Position(uint8 row, uint8 column) 
+ 199          {
+ 200   1          switch (row)
+ 201   1          {
+ 202   2              case 0:
+ 203   2                  LCD_WriteControl(LCD_ROW_0_START + column);
+ 204   2                  break;
+ 205   2              case 1:
+ 206   2                  LCD_WriteControl(LCD_ROW_1_START + column);
+ 207   2                  break;
+ 208   2              case 2:
+ 209   2                  LCD_WriteControl(LCD_ROW_2_START + column);
+ 210   2                  break;
+ 211   2              case 3:
+ 212   2                  LCD_WriteControl(LCD_ROW_3_START + column);
+ 213   2                  break;
+ 214   2              default:
+ 215   2                  /* if default case is hit, invalid row argument was passed.*/
+ 216   2                  break;
+ 217   2          }
+ 218   1      }
+ 219          
+ 220          
+ 221          /*******************************************************************************
+ 222          * Function Name: LCD_PrintString
+ 223          ********************************************************************************
+ 224          *
+ 225          * Summary:
+ 226          *  Writes a zero terminated string to the LCD.
+ 227          *
+ 228          * Parameters:
+ 229          *  string:  pointer to head of char8 array to be written to the LCD module
+ 230          *
+ 231          * Return:
+ 232          *  None.
+ 233          *
+ 234          *******************************************************************************/
+ 235          void LCD_PrintString(char8 * string) 
+ 236          {
+ 237   1          uint8 indexU8 = 1u;
+ 238   1          char8 current = *string;
+ 239   1      
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 5   
+
+ 240   1          /* Until null is reached, print next character */
+ 241   1          while(current != (char8) '\0')
+ 242   1          {
+ 243   2              LCD_WriteData(current);
+ 244   2              current = *(string + indexU8);
+ 245   2              indexU8++;
+ 246   2          }
+ 247   1      }
+ 248          
+ 249          
+ 250          /*******************************************************************************
+ 251          *  Function Name: LCD_PutChar
+ 252          ********************************************************************************
+ 253          *
+ 254          * Summary:
+ 255          *  Writes a single character to the current cursor position of the LCD module.
+ 256          *  Custom character names (_CUSTOM_0 through
+ 257          *  _CUSTOM_7) are acceptable as inputs.
+ 258          *
+ 259          * Parameters:
+ 260          *  character:  character to be written to the LCD
+ 261          *
+ 262          * Return:
+ 263          *  None.
+ 264          *
+ 265          *******************************************************************************/
+ 266          void LCD_PutChar(char8 character) 
+ 267          {
+ 268   1          LCD_WriteData(character);
+ 269   1      }
+ 270          
+ 271          
+ 272          /*******************************************************************************
+ 273          *  Function Name: LCD_WriteData
+ 274          ********************************************************************************
+ 275          *
+ 276          * Summary:
+ 277          *  Writes a data byte to the LCD module's Data Display RAM.
+ 278          *
+ 279          * Parameters:
+ 280          *  dByte:  byte to be written to LCD module.
+ 281          *
+ 282          * Return:
+ 283          *  None.
+ 284          *
+ 285          *******************************************************************************/
+ 286          void LCD_WriteData(uint8 dByte) 
+ 287          {
+ 288   1          uint8 nibble;
+ 289   1      
+ 290   1          LCD_IsReady();
+ 291   1          nibble = dByte >> LCD_NIBBLE_SHIFT;
+ 292   1      
+ 293   1          /* Write high nibble */
+ 294   1          LCD_WrDatNib(nibble);
+ 295   1      
+ 296   1          nibble = dByte & LCD_NIBBLE_MASK;
+ 297   1          /* Write low nibble */
+ 298   1          LCD_WrDatNib(nibble);
+ 299   1      }
+ 300          
+ 301          
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 6   
+
+ 302          /*******************************************************************************
+ 303          *  Function Name: LCD_WriteControl
+ 304          ********************************************************************************
+ 305          *
+ 306          * Summary:
+ 307          *  Writes a command byte to the LCD module.
+ 308          *
+ 309          * Parameters:
+ 310          *  cByte:   byte to be written to LCD module.
+ 311          *
+ 312          * Return:
+ 313          *  None.
+ 314          *
+ 315          *******************************************************************************/
+ 316          void LCD_WriteControl(uint8 cByte) 
+ 317          {
+ 318   1          uint8 nibble;
+ 319   1      
+ 320   1          nibble = cByte >> LCD_NIBBLE_SHIFT;
+ 321   1      
+ 322   1          LCD_IsReady();
+ 323   1          nibble &= LCD_NIBBLE_MASK;
+ 324   1      
+ 325   1          /* WrCntrlNib(High Nibble) */
+ 326   1          LCD_WrCntrlNib(nibble);
+ 327   1          nibble = cByte & LCD_NIBBLE_MASK;
+ 328   1      
+ 329   1          /* WrCntrlNib(Low Nibble) */
+ 330   1          LCD_WrCntrlNib(nibble);
+ 331   1      }
+ 332          
+ 333          
+ 334          /*******************************************************************************
+ 335          * Function Name: LCD_IsReady
+ 336          ********************************************************************************
+ 337          *
+ 338          * Summary:
+ 339          *  Polls LCD until the ready bit is set.
+ 340          *
+ 341          * Parameters:
+ 342          *  None.
+ 343          *
+ 344          * Return:
+ 345          *  None.
+ 346          *
+ 347          * Note:
+ 348          *  Changes pins to High-Z.
+ 349          *
+ 350          *******************************************************************************/
+ 351          void LCD_IsReady() 
+ 352          {
+ 353   1          uint8 value = 0u;
+ 354   1      
+ 355   1          /* Clear the LCD port*/
+ 356   1          LCD_PORT_DR_REG &= ~LCD_PORT_MASK ;
+ 357   1      
+ 358   1          /* Change Port to High-Z Status on data pins */
+ 359   1      
+ 360   1          /* Mask off data pins to clear old values out */
+ 361   1          value = LCD_PORT_DM0_REG & ~LCD_DATA_MASK;
+ 362   1          /* Load in high Z values for data pins, others unchanged */
+ 363   1          LCD_PORT_DM0_REG = value | (LCD_HIGH_Z_DM0 & LCD_DATA_MASK);
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 7   
+
+ 364   1      
+ 365   1          /* Mask off data pins to clear old values out */
+ 366   1          value = LCD_PORT_DM1_REG & ~LCD_DATA_MASK;
+ 367   1          /* Load in high Z values for data pins, others unchanged */
+ 368   1          LCD_PORT_DM1_REG = value | (LCD_HIGH_Z_DM1 & LCD_DATA_MASK);
+ 369   1      
+ 370   1          /* Mask off data pins to clear old values out */
+ 371   1          value = LCD_PORT_DM2_REG & ~LCD_DATA_MASK;
+ 372   1          /* Load in high Z values for data pins, others unchanged */
+ 373   1          LCD_PORT_DM2_REG = value | (LCD_HIGH_Z_DM2 & LCD_DATA_MASK);
+ 374   1      
+ 375   1          /* Make sure RS is low */
+ 376   1          LCD_PORT_DR_REG &= ~LCD_RS;
+ 377   1      
+ 378   1          /* Set R/W high to read */
+ 379   1          LCD_PORT_DR_REG |= LCD_RW;
+ 380   1      
+ 381   1          do
+ 382   1          {
+ 383   2              /* 40 ns delay required before rising Enable and 500ns between neighbour Enables */
+ 384   2              CyDelayUs(0u);
+ 385   2      
+ 386   2              /* Set E high */
+ 387   2              LCD_PORT_DR_REG |= LCD_E;
+ 388   2      
+ 389   2              /* 360 ns delay the setup time for data pins */
+ 390   2              CyDelayUs(1u);
+ 391   2      
+ 392   2              /* Get port state */
+ 393   2              value = LCD_PORT_PS_REG;
+ 394   2      
+ 395   2              /* Set enable low */
+ 396   2              LCD_PORT_DR_REG &= ~LCD_E;
+ 397   2      
+ 398   2              /* Extract ready bit */
+ 399   2              value &= LCD_READY_BIT;
+ 400   2      
+ 401   2              /* Set E high as we in 4-bit interface we need extra oparation */
+ 402   2              LCD_PORT_DR_REG |= LCD_E;
+ 403   2      
+ 404   2              /* 360 ns delay the setup time for data pins */
+ 405   2              CyDelayUs(1u);
+ 406   2      
+ 407   2              /* Set enable low */
+ 408   2              LCD_PORT_DR_REG &= ~LCD_E;
+ 409   2      
+ 410   2              /* Repeat until bit 4 is not zero. */
+ 411   2      
+ 412   2          } while (value != 0u);
+ 413   1      
+ 414   1          /* Set R/W low to write */
+ 415   1          LCD_PORT_DR_REG &= ~LCD_RW;
+ 416   1      
+ 417   1          /* Clear the LCD port*/
+ 418   1          LCD_PORT_DR_REG &= ~LCD_PORT_MASK ;
+ 419   1      
+ 420   1          /* Change Port to Output (Strong) on data pins */
+ 421   1      
+ 422   1          /* Mask off data pins to clear high z values out */
+ 423   1          value = LCD_PORT_DM0_REG & (~LCD_DATA_MASK);
+ 424   1          /* Load in high Z values for data pins, others unchanged */
+ 425   1          LCD_PORT_DM0_REG = value | (LCD_STRONG_DM0 & LCD_DATA_MASK);
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 8   
+
+ 426   1      
+ 427   1          /* Mask off data pins to clear high z values out */
+ 428   1          value = LCD_PORT_DM1_REG & (~LCD_DATA_MASK);
+ 429   1          /* Load in high Z values for data pins, others unchanged */
+ 430   1          LCD_PORT_DM1_REG = value | (LCD_STRONG_DM1 & LCD_DATA_MASK);
+ 431   1      
+ 432   1          /* Mask off data pins to clear high z values out */
+ 433   1          value = LCD_PORT_DM2_REG & (~LCD_DATA_MASK);
+ 434   1          /* Load in high Z values for data pins, others unchanged */
+ 435   1          LCD_PORT_DM2_REG = value | (LCD_STRONG_DM2 & LCD_DATA_MASK);
+ 436   1      }
+ 437          
+ 438          
+ 439          /*******************************************************************************
+ 440          *  Function Name: LCD_WrDatNib
+ 441          ********************************************************************************
+ 442          *
+ 443          * Summary:
+ 444          *  Writes a data nibble to the LCD module.
+ 445          *
+ 446          * Parameters:
+ 447          *  nibble:  byte containing nibble in least significant nibble to be written
+ 448          *           to LCD module.
+ 449          *
+ 450          * Return:
+ 451          *  None.
+ 452          *
+ 453          *******************************************************************************/
+ 454          void LCD_WrDatNib(uint8 nibble) 
+ 455          {
+ 456   1          LCD_IsReady();
+ 457   1      
+ 458   1          /* RS shoul be low to select data register */
+ 459   1          LCD_PORT_DR_REG |= LCD_RS;
+ 460   1          /* Reset RW for write operation */
+ 461   1          LCD_PORT_DR_REG &= ~LCD_RW;
+ 462   1      
+ 463   1          /* Two following lines of code will provide us with 40ns delay */
+ 464   1          /* Clear data pins */
+ 465   1          LCD_PORT_DR_REG &= ~LCD_DATA_MASK;
+ 466   1      
+ 467   1          /* Write in data, bring E high*/
+ 468   1          LCD_PORT_DR_REG |= (LCD_E | (nibble << LCD_PORT_SHIFT));
+ 469   1      
+ 470   1          /* Minimum of 230 ns delay */
+ 471   1          CyDelayUs(1u);
+ 472   1      
+ 473   1          LCD_PORT_DR_REG &= ~LCD_E;
+ 474   1      }
+ 475          
+ 476          
+ 477          /*******************************************************************************
+ 478          *  Function Name: LCD_WrCntrlNib
+ 479          ********************************************************************************
+ 480          *
+ 481          * Summary:
+ 482          *  Writes a control nibble to the LCD module.
+ 483          *
+ 484          * Parameters:
+ 485          *  nibble:  byte containing nibble in least significant nibble to be written
+ 486          *           to LCD module.
+ 487          *
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 9   
+
+ 488          * Return:
+ 489          *  None.
+ 490          *
+ 491          *******************************************************************************/
+ 492          void LCD_WrCntrlNib(uint8 nibble) 
+ 493          {
+ 494   1          /* RS and RW shoul be low to select instruction register and  write operation respectively */
+ 495   1          LCD_PORT_DR_REG &= ~(LCD_RS | LCD_RW);
+ 496   1      
+ 497   1          /* Two following lines of code will give provide ua with 40ns delay */
+ 498   1          /* Clear data pins */
+ 499   1          LCD_PORT_DR_REG &= ~LCD_DATA_MASK;
+ 500   1      
+ 501   1          /* Write control data and set enable signal */
+ 502   1          LCD_PORT_DR_REG |= (LCD_E | (nibble << LCD_PORT_SHIFT));
+ 503   1      
+ 504   1          /* Minimum of 230 ns delay */
+ 505   1          CyDelayUs(1u);
+ 506   1      
+ 507   1          LCD_PORT_DR_REG &= ~LCD_E;
+ 508   1      }
+ 509          
+ 510          
+ 511          #if(LCD_CONVERSION_ROUTINES == 1u)
+ 512          
+ 513              /*******************************************************************************
+ 514              *  Function Name: LCD_PrintHexUint8
+ 515              ********************************************************************************
+ 516              *
+ 517              * Summary:
+ 518              *  Print a byte as two ASCII characters.
+ 519              *
+ 520              * Parameters:
+ 521              *  value:  The byte to be printed out as ASCII characters.
+ 522              *
+ 523              * Return:
+ 524              *  None.
+ 525              *
+ 526              *******************************************************************************/
+ 527              void LCD_PrintHexUint8(uint8 value) 
+ 528              {
+ 529   1              LCD_PutChar((char8) LCD_hex[value >> LCD_BYTE_UPPER_NIBBLE_SHIFT]);
+ 530   1              LCD_PutChar((char8) LCD_hex[value & LCD_BYTE_LOWER_NIBBLE_MASK]);
+ 531   1          }
+ 532          
+ 533          
+ 534              /*******************************************************************************
+ 535              *  Function Name: LCD_PrintHexUint16
+ 536              ********************************************************************************
+ 537              *
+ 538              * Summary:
+ 539              *  Print a uint16 as four ASCII characters.
+ 540              *
+ 541              * Parameters:
+ 542              *  value:   The uint16 to be printed out as ASCII characters.
+ 543              *
+ 544              * Return:
+ 545              *  None.
+ 546              *
+ 547              *******************************************************************************/
+ 548              void LCD_PrintHexUint16(uint16 value) 
+ 549              {
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 10  
+
+ 550   1              LCD_PrintHexUint8(value >> LCD_U16_UPPER_BYTE_SHIFT);
+ 551   1              LCD_PrintHexUint8(value & LCD_U16_LOWER_BYTE_MASK);
+ 552   1          }
+ 553          
+ 554          
+ 555              /*******************************************************************************
+ 556              *  Function Name: LCD_PrintDecUint16
+ 557              ********************************************************************************
+ 558              *
+ 559              * Summary:
+ 560              *  Print an uint32 value as a left-justified decimal value.
+ 561              *
+ 562              * Parameters:
+ 563              *  value:  The byte to be printed out as ASCII characters.
+ 564              *
+ 565              * Return:
+ 566              *  None.
+ 567              *
+ 568              *******************************************************************************/
+ 569              void LCD_PrintDecUint16(uint16 value) 
+ 570              {
+ 571   1      
+ 572   1              char8 number[LCD_NUMBER_OF_REMAINDERS];
+ 573   1              char8 temp[LCD_NUMBER_OF_REMAINDERS];
+ 574   1      
+ 575   1              uint8 index = 0u;
+ 576   1              uint8 numDigits = 0u;
+ 577   1      
+ 578   1      
+ 579   1              /* Load these in reverse order */
+ 580   1              while(value >= LCD_TEN)
+ 581   1              {
+ 582   2                  temp[index] = (value % LCD_TEN) + '0';
+ 583   2                  value /= LCD_TEN;
+ 584   2                  index++;
+ 585   2              }
+ 586   1      
+ 587   1              temp[index] = (value % LCD_TEN) + '0';
+ 588   1              numDigits = index;
+ 589   1      
+ 590   1              /* While index is greater than or equal to zero */
+ 591   1              while (index != 0xFFu)
+ 592   1              {
+ 593   2                  number[numDigits - index] = temp[index];
+ 594   2                  index--;
+ 595   2              }
+ 596   1      
+ 597   1              /* Null Termination */
+ 598   1              number[numDigits + 1u] = (char8) 0;
+ 599   1      
+ 600   1              /* Print out number */
+ 601   1              LCD_PrintString(number);
+ 602   1          }
+ 603          
+ 604          #endif /* LCD_CONVERSION_ROUTINES == 1u */
+ 605          
+ 606          
+ 607          /* [] END OF FILE */
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 11  
+
+ASSEMBLY LISTING OF GENERATED OBJECT CODE
+
+
+             ; FUNCTION LCD_Init (BEGIN)
+                                           ; SOURCE LINE # 57
+                                           ; SOURCE LINE # 58
+                                           ; SOURCE LINE # 60
+0000 7F28              MOV     R7,#028H
+0002 7E00              MOV     R6,#00H
+0004 7D00              MOV     R5,#00H
+0006 7C00              MOV     R4,#00H
+0008 120000      E     LCALL   _?CyDelay
+                                           ; SOURCE LINE # 61
+000B 7F03              MOV     R7,#03H
+000D 120000      R     LCALL   _LCD_WrCntrlNib
+                                           ; SOURCE LINE # 62
+0010 7F05              MOV     R7,#05H
+0012 7E00              MOV     R6,#00H
+0014 7D00              MOV     R5,#00H
+0016 7C00              MOV     R4,#00H
+0018 120000      E     LCALL   _?CyDelay
+                                           ; SOURCE LINE # 63
+001B 7F03              MOV     R7,#03H
+001D 120000      R     LCALL   _LCD_WrCntrlNib
+                                           ; SOURCE LINE # 64
+0020 7F0F              MOV     R7,#0FH
+0022 7E00              MOV     R6,#00H
+0024 7D00              MOV     R5,#00H
+0026 7C00              MOV     R4,#00H
+0028 120000      E     LCALL   _?CyDelay
+                                           ; SOURCE LINE # 65
+002B 7F03              MOV     R7,#03H
+002D 120000      R     LCALL   _LCD_WrCntrlNib
+                                           ; SOURCE LINE # 66
+0030 7F01              MOV     R7,#01H
+0032 7E00              MOV     R6,#00H
+0034 7D00              MOV     R5,#00H
+0036 7C00              MOV     R4,#00H
+0038 120000      E     LCALL   _?CyDelay
+                                           ; SOURCE LINE # 67
+003B 7F02              MOV     R7,#02H
+003D 120000      R     LCALL   _LCD_WrCntrlNib
+                                           ; SOURCE LINE # 68
+0040 7F05              MOV     R7,#05H
+0042 7E00              MOV     R6,#00H
+0044 7D00              MOV     R5,#00H
+0046 7C00              MOV     R4,#00H
+0048 120000      E     LCALL   _?CyDelay
+                                           ; SOURCE LINE # 70
+004B 7F06              MOV     R7,#06H
+004D 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 71
+0050 7F0E              MOV     R7,#0EH
+0052 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 72
+0055 7F2C              MOV     R7,#02CH
+0057 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 73
+005A 7F08              MOV     R7,#08H
+005C 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 74
+005F 7F01              MOV     R7,#01H
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 12  
+
+0061 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 75
+0064 7F0C              MOV     R7,#0CH
+0066 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 76
+0069 7F03              MOV     R7,#03H
+006B 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 77
+006E 7F05              MOV     R7,#05H
+0070 7E00              MOV     R6,#00H
+0072 7D00              MOV     R5,#00H
+0074 7C00              MOV     R4,#00H
+0076 120000      E     LCALL   _?CyDelay
+                                           ; SOURCE LINE # 82
+0079         ?C0001:
+0079 22                RET     
+             ; FUNCTION LCD_Init (END)
+
+             ; FUNCTION LCD_Enable (BEGIN)
+                                           ; SOURCE LINE # 106
+                                           ; SOURCE LINE # 107
+                                           ; SOURCE LINE # 108
+0000 7F0C              MOV     R7,#0CH
+0002 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 109
+0005 900000      R     MOV     DPTR,#LCD_enableState
+0008 7401              MOV     A,#01H
+000A F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 110
+000B         ?C0002:
+000B 22                RET     
+             ; FUNCTION LCD_Enable (END)
+
+             ; FUNCTION LCD_Start (BEGIN)
+                                           ; SOURCE LINE # 139
+                                           ; SOURCE LINE # 140
+                                           ; SOURCE LINE # 142
+0000 900000      R     MOV     DPTR,#LCD_initVar
+0003 E0                MOVX    A,@DPTR
+0004 FF                MOV     R7,A
+0005 EF                MOV     A,R7
+0006 7009              JNZ     ?C0003
+                                           ; SOURCE LINE # 143
+                                           ; SOURCE LINE # 144
+0008 120000      R     LCALL   LCD_Init
+                                           ; SOURCE LINE # 145
+000B 900000      R     MOV     DPTR,#LCD_initVar
+000E 7401              MOV     A,#01H
+0010 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 146
+0011         ?C0003:
+                                           ; SOURCE LINE # 149
+0011 120000      R     LCALL   LCD_Enable
+                                           ; SOURCE LINE # 150
+0014         ?C0004:
+0014 22                RET     
+             ; FUNCTION LCD_Start (END)
+
+             ; FUNCTION LCD_Stop (BEGIN)
+                                           ; SOURCE LINE # 170
+                                           ; SOURCE LINE # 171
+                                           ; SOURCE LINE # 173
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 13  
+
+0000 7F08              MOV     R7,#08H
+0002 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 174
+0005 900000      R     MOV     DPTR,#LCD_enableState
+0008 E4                CLR     A
+0009 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 175
+000A         ?C0005:
+000A 22                RET     
+             ; FUNCTION LCD_Stop (END)
+
+             ; FUNCTION _LCD_Position (BEGIN)
+                                           ; SOURCE LINE # 198
+0000 900000      R     MOV     DPTR,#row
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+0005 900000      R     MOV     DPTR,#column
+0008 ED                MOV     A,R5
+0009 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 199
+                                           ; SOURCE LINE # 200
+000A 900000      R     MOV     DPTR,#row
+000D E0                MOVX    A,@DPTR
+000E FF                MOV     R7,A
+000F EF                MOV     A,R7
+0010 120000      E     LCALL   ?C?CCASE
+0013 0000        R     DW      ?C0007
+0015 00                DB      00H
+0016 0000        R     DW      ?C0008
+0018 01                DB      01H
+0019 0000        R     DW      ?C0009
+001B 02                DB      02H
+001C 0000        R     DW      ?C0010
+001E 03                DB      03H
+001F 0000              DW      00H
+0021 0000        R     DW      ?C0012
+                                           ; SOURCE LINE # 201
+                                           ; SOURCE LINE # 202
+0023         ?C0007:
+                                           ; SOURCE LINE # 203
+0023 900000      R     MOV     DPTR,#column
+0026 E0                MOVX    A,@DPTR
+0027 FF                MOV     R7,A
+0028 EF                MOV     A,R7
+0029 2480              ADD     A,#080H
+002B FF                MOV     R7,A
+002C 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 204
+002F 22                RET     
+                                           ; SOURCE LINE # 205
+0030         ?C0008:
+                                           ; SOURCE LINE # 206
+0030 900000      R     MOV     DPTR,#column
+0033 E0                MOVX    A,@DPTR
+0034 FF                MOV     R7,A
+0035 EF                MOV     A,R7
+0036 24C0              ADD     A,#0C0H
+0038 FF                MOV     R7,A
+0039 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 207
+003C 22                RET     
+                                           ; SOURCE LINE # 208
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 14  
+
+003D         ?C0009:
+                                           ; SOURCE LINE # 209
+003D 900000      R     MOV     DPTR,#column
+0040 E0                MOVX    A,@DPTR
+0041 FF                MOV     R7,A
+0042 EF                MOV     A,R7
+0043 2494              ADD     A,#094H
+0045 FF                MOV     R7,A
+0046 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 210
+0049 22                RET     
+                                           ; SOURCE LINE # 211
+004A         ?C0010:
+                                           ; SOURCE LINE # 212
+004A 900000      R     MOV     DPTR,#column
+004D E0                MOVX    A,@DPTR
+004E FF                MOV     R7,A
+004F EF                MOV     A,R7
+0050 24D4              ADD     A,#0D4H
+0052 FF                MOV     R7,A
+0053 120000      R     LCALL   _LCD_WriteControl
+                                           ; SOURCE LINE # 213
+                                           ; SOURCE LINE # 214
+0056         ?C0011:
+                                           ; SOURCE LINE # 216
+                                           ; SOURCE LINE # 217
+0056         ?C0006:
+                                           ; SOURCE LINE # 218
+0056         ?C0012:
+0056 22                RET     
+             ; FUNCTION _LCD_Position (END)
+
+             ; FUNCTION _LCD_PrintString (BEGIN)
+                                           ; SOURCE LINE # 235
+0000 900000      R     MOV     DPTR,#string
+0003 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 236
+                                           ; SOURCE LINE # 237
+0006 900000      R     MOV     DPTR,#indexU8
+0009 7401              MOV     A,#01H
+000B F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 238
+000C 900000      R     MOV     DPTR,#string
+000F 120000      E     LCALL   ?C?PLDXDATA
+0012 120000      E     LCALL   ?C?CLDPTR
+0015 FF                MOV     R7,A
+0016 900000      R     MOV     DPTR,#current
+0019 EF                MOV     A,R7
+001A F0                MOVX    @DPTR,A
+001B         ?C0013:
+                                           ; SOURCE LINE # 241
+001B 900000      R     MOV     DPTR,#current
+001E E0                MOVX    A,@DPTR
+001F FF                MOV     R7,A
+0020 EF                MOV     A,R7
+0021 602A              JZ      ?C0015
+                                           ; SOURCE LINE # 242
+                                           ; SOURCE LINE # 243
+0023 900000      R     MOV     DPTR,#current
+0026 E0                MOVX    A,@DPTR
+0027 FF                MOV     R7,A
+0028 120000      R     LCALL   _LCD_WriteData
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 15  
+
+                                           ; SOURCE LINE # 244
+002B 900000      R     MOV     DPTR,#string
+002E 120000      E     LCALL   ?C?PLDXDATA
+0031 900000      R     MOV     DPTR,#indexU8
+0034 E0                MOVX    A,@DPTR
+0035 FF                MOV     R7,A
+0036 E9                MOV     A,R1
+0037 2F                ADD     A,R7
+0038 F9                MOV     R1,A
+0039 E4                CLR     A
+003A 3A                ADDC    A,R2
+003B FA                MOV     R2,A
+003C 120000      E     LCALL   ?C?CLDPTR
+003F FF                MOV     R7,A
+0040 900000      R     MOV     DPTR,#current
+0043 EF                MOV     A,R7
+0044 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 245
+0045 900000      R     MOV     DPTR,#indexU8
+0048 E0                MOVX    A,@DPTR
+0049 04                INC     A
+004A F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 246
+004B 80CE              SJMP    ?C0013
+004D         ?C0014:
+                                           ; SOURCE LINE # 247
+004D         ?C0015:
+004D 22                RET     
+             ; FUNCTION _LCD_PrintString (END)
+
+             ; FUNCTION _LCD_PutChar (BEGIN)
+                                           ; SOURCE LINE # 266
+0000 900000      R     MOV     DPTR,#character
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 267
+                                           ; SOURCE LINE # 268
+0005 900000      R     MOV     DPTR,#character
+0008 E0                MOVX    A,@DPTR
+0009 FF                MOV     R7,A
+000A 120000      R     LCALL   _LCD_WriteData
+                                           ; SOURCE LINE # 269
+000D         ?C0016:
+000D 22                RET     
+             ; FUNCTION _LCD_PutChar (END)
+
+             ; FUNCTION _LCD_WriteData (BEGIN)
+                                           ; SOURCE LINE # 286
+0000 900000      R     MOV     DPTR,#dByte
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 287
+                                           ; SOURCE LINE # 290
+0005 120000      R     LCALL   LCD_IsReady
+                                           ; SOURCE LINE # 291
+0008 900000      R     MOV     DPTR,#dByte
+000B E0                MOVX    A,@DPTR
+000C FF                MOV     R7,A
+000D EF                MOV     A,R7
+000E C4                SWAP    A
+000F 540F              ANL     A,#0FH
+0011 FF                MOV     R7,A
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 16  
+
+0012 900000      R     MOV     DPTR,#nibble
+0015 EF                MOV     A,R7
+0016 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 294
+0017 900000      R     MOV     DPTR,#nibble
+001A E0                MOVX    A,@DPTR
+001B FF                MOV     R7,A
+001C 120000      R     LCALL   _LCD_WrDatNib
+                                           ; SOURCE LINE # 296
+001F 900000      R     MOV     DPTR,#dByte
+0022 E0                MOVX    A,@DPTR
+0023 FF                MOV     R7,A
+0024 EF                MOV     A,R7
+0025 540F              ANL     A,#0FH
+0027 FF                MOV     R7,A
+0028 900000      R     MOV     DPTR,#nibble
+002B EF                MOV     A,R7
+002C F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 298
+002D 900000      R     MOV     DPTR,#nibble
+0030 E0                MOVX    A,@DPTR
+0031 FF                MOV     R7,A
+0032 120000      R     LCALL   _LCD_WrDatNib
+                                           ; SOURCE LINE # 299
+0035         ?C0017:
+0035 22                RET     
+             ; FUNCTION _LCD_WriteData (END)
+
+             ; FUNCTION _LCD_WriteControl (BEGIN)
+                                           ; SOURCE LINE # 316
+0000 900000      R     MOV     DPTR,#cByte
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 317
+                                           ; SOURCE LINE # 320
+0005 900000      R     MOV     DPTR,#cByte
+0008 E0                MOVX    A,@DPTR
+0009 FF                MOV     R7,A
+000A EF                MOV     A,R7
+000B C4                SWAP    A
+000C 540F              ANL     A,#0FH
+000E FF                MOV     R7,A
+000F 900000      R     MOV     DPTR,#nibble
+0012 EF                MOV     A,R7
+0013 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 322
+0014 120000      R     LCALL   LCD_IsReady
+                                           ; SOURCE LINE # 323
+0017 900000      R     MOV     DPTR,#nibble
+001A E0                MOVX    A,@DPTR
+001B FF                MOV     R7,A
+001C EF                MOV     A,R7
+001D 540F              ANL     A,#0FH
+001F FF                MOV     R7,A
+0020 900000      R     MOV     DPTR,#nibble
+0023 EF                MOV     A,R7
+0024 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 326
+0025 900000      R     MOV     DPTR,#nibble
+0028 E0                MOVX    A,@DPTR
+0029 FF                MOV     R7,A
+002A 120000      R     LCALL   _LCD_WrCntrlNib
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 17  
+
+                                           ; SOURCE LINE # 327
+002D 900000      R     MOV     DPTR,#cByte
+0030 E0                MOVX    A,@DPTR
+0031 FF                MOV     R7,A
+0032 EF                MOV     A,R7
+0033 540F              ANL     A,#0FH
+0035 FF                MOV     R7,A
+0036 900000      R     MOV     DPTR,#nibble
+0039 EF                MOV     A,R7
+003A F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 330
+003B 900000      R     MOV     DPTR,#nibble
+003E E0                MOVX    A,@DPTR
+003F FF                MOV     R7,A
+0040 120000      R     LCALL   _LCD_WrCntrlNib
+                                           ; SOURCE LINE # 331
+0043         ?C0018:
+0043 22                RET     
+             ; FUNCTION _LCD_WriteControl (END)
+
+             ; FUNCTION LCD_IsReady (BEGIN)
+                                           ; SOURCE LINE # 351
+                                           ; SOURCE LINE # 352
+                                           ; SOURCE LINE # 353
+0000 900000      R     MOV     DPTR,#value
+0003 E4                CLR     A
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 356
+0005 905120            MOV     DPTR,#05120H
+0008 E0                MOVX    A,@DPTR
+0009 FF                MOV     R7,A
+000A EF                MOV     A,R7
+000B 5480              ANL     A,#080H
+000D FF                MOV     R7,A
+000E EF                MOV     A,R7
+000F F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 361
+0010 905122            MOV     DPTR,#05122H
+0013 E0                MOVX    A,@DPTR
+0014 FF                MOV     R7,A
+0015 EF                MOV     A,R7
+0016 54F0              ANL     A,#0F0H
+0018 FF                MOV     R7,A
+0019 900000      R     MOV     DPTR,#value
+001C EF                MOV     A,R7
+001D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 363
+001E 900000      R     MOV     DPTR,#value
+0021 E0                MOVX    A,@DPTR
+0022 FF                MOV     R7,A
+0023 EF                MOV     A,R7
+0024 440F              ORL     A,#0FH
+0026 FF                MOV     R7,A
+0027 905122            MOV     DPTR,#05122H
+002A EF                MOV     A,R7
+002B F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 366
+002C 905123            MOV     DPTR,#05123H
+002F E0                MOVX    A,@DPTR
+0030 FF                MOV     R7,A
+0031 EF                MOV     A,R7
+0032 54F0              ANL     A,#0F0H
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 18  
+
+0034 FF                MOV     R7,A
+0035 900000      R     MOV     DPTR,#value
+0038 EF                MOV     A,R7
+0039 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 368
+003A 900000      R     MOV     DPTR,#value
+003D E0                MOVX    A,@DPTR
+003E FF                MOV     R7,A
+003F 905123            MOV     DPTR,#05123H
+0042 EF                MOV     A,R7
+0043 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 371
+0044 905124            MOV     DPTR,#05124H
+0047 E0                MOVX    A,@DPTR
+0048 FF                MOV     R7,A
+0049 EF                MOV     A,R7
+004A 54F0              ANL     A,#0F0H
+004C FF                MOV     R7,A
+004D 900000      R     MOV     DPTR,#value
+0050 EF                MOV     A,R7
+0051 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 373
+0052 900000      R     MOV     DPTR,#value
+0055 E0                MOVX    A,@DPTR
+0056 FF                MOV     R7,A
+0057 905124            MOV     DPTR,#05124H
+005A EF                MOV     A,R7
+005B F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 376
+005C 905120            MOV     DPTR,#05120H
+005F E0                MOVX    A,@DPTR
+0060 FF                MOV     R7,A
+0061 EF                MOV     A,R7
+0062 54DF              ANL     A,#0DFH
+0064 FF                MOV     R7,A
+0065 EF                MOV     A,R7
+0066 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 379
+0067 905120            MOV     DPTR,#05120H
+006A E0                MOVX    A,@DPTR
+006B FF                MOV     R7,A
+006C EF                MOV     A,R7
+006D 4440              ORL     A,#040H
+006F FF                MOV     R7,A
+0070 EF                MOV     A,R7
+0071 F0                MOVX    @DPTR,A
+0072         ?C0021:
+                                           ; SOURCE LINE # 382
+                                           ; SOURCE LINE # 384
+0072 7F00              MOV     R7,#00H
+0074 7E00              MOV     R6,#00H
+0076 120000      E     LCALL   _CyDelayUs
+                                           ; SOURCE LINE # 387
+0079 905120            MOV     DPTR,#05120H
+007C E0                MOVX    A,@DPTR
+007D FF                MOV     R7,A
+007E EF                MOV     A,R7
+007F 4410              ORL     A,#010H
+0081 FF                MOV     R7,A
+0082 EF                MOV     A,R7
+0083 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 390
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 19  
+
+0084 7F01              MOV     R7,#01H
+0086 7E00              MOV     R6,#00H
+0088 120000      E     LCALL   _CyDelayUs
+                                           ; SOURCE LINE # 393
+008B 905121            MOV     DPTR,#05121H
+008E E0                MOVX    A,@DPTR
+008F FF                MOV     R7,A
+0090 900000      R     MOV     DPTR,#value
+0093 EF                MOV     A,R7
+0094 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 396
+0095 905120            MOV     DPTR,#05120H
+0098 E0                MOVX    A,@DPTR
+0099 FF                MOV     R7,A
+009A EF                MOV     A,R7
+009B 54EF              ANL     A,#0EFH
+009D FF                MOV     R7,A
+009E EF                MOV     A,R7
+009F F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 399
+00A0 900000      R     MOV     DPTR,#value
+00A3 E0                MOVX    A,@DPTR
+00A4 FF                MOV     R7,A
+00A5 EF                MOV     A,R7
+00A6 5408              ANL     A,#08H
+00A8 FF                MOV     R7,A
+00A9 900000      R     MOV     DPTR,#value
+00AC EF                MOV     A,R7
+00AD F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 402
+00AE 905120            MOV     DPTR,#05120H
+00B1 E0                MOVX    A,@DPTR
+00B2 FF                MOV     R7,A
+00B3 EF                MOV     A,R7
+00B4 4410              ORL     A,#010H
+00B6 FF                MOV     R7,A
+00B7 EF                MOV     A,R7
+00B8 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 405
+00B9 7F01              MOV     R7,#01H
+00BB 7E00              MOV     R6,#00H
+00BD 120000      E     LCALL   _CyDelayUs
+                                           ; SOURCE LINE # 408
+00C0 905120            MOV     DPTR,#05120H
+00C3 E0                MOVX    A,@DPTR
+00C4 FF                MOV     R7,A
+00C5 EF                MOV     A,R7
+00C6 54EF              ANL     A,#0EFH
+00C8 FF                MOV     R7,A
+00C9 EF                MOV     A,R7
+00CA F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 412
+00CB         ?C0019:
+00CB 900000      R     MOV     DPTR,#value
+00CE E0                MOVX    A,@DPTR
+00CF FF                MOV     R7,A
+00D0 EF                MOV     A,R7
+00D1 709F              JNZ     ?C0021
+00D3         ?C0020:
+                                           ; SOURCE LINE # 415
+00D3 905120            MOV     DPTR,#05120H
+00D6 E0                MOVX    A,@DPTR
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 20  
+
+00D7 FF                MOV     R7,A
+00D8 EF                MOV     A,R7
+00D9 54BF              ANL     A,#0BFH
+00DB FF                MOV     R7,A
+00DC EF                MOV     A,R7
+00DD F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 418
+00DE 905120            MOV     DPTR,#05120H
+00E1 E0                MOVX    A,@DPTR
+00E2 FF                MOV     R7,A
+00E3 EF                MOV     A,R7
+00E4 5480              ANL     A,#080H
+00E6 FF                MOV     R7,A
+00E7 EF                MOV     A,R7
+00E8 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 423
+00E9 905122            MOV     DPTR,#05122H
+00EC E0                MOVX    A,@DPTR
+00ED FF                MOV     R7,A
+00EE EF                MOV     A,R7
+00EF 54F0              ANL     A,#0F0H
+00F1 FF                MOV     R7,A
+00F2 900000      R     MOV     DPTR,#value
+00F5 EF                MOV     A,R7
+00F6 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 425
+00F7 900000      R     MOV     DPTR,#value
+00FA E0                MOVX    A,@DPTR
+00FB FF                MOV     R7,A
+00FC 905122            MOV     DPTR,#05122H
+00FF EF                MOV     A,R7
+0100 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 428
+0101 905123            MOV     DPTR,#05123H
+0104 E0                MOVX    A,@DPTR
+0105 FF                MOV     R7,A
+0106 EF                MOV     A,R7
+0107 54F0              ANL     A,#0F0H
+0109 FF                MOV     R7,A
+010A 900000      R     MOV     DPTR,#value
+010D EF                MOV     A,R7
+010E F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 430
+010F 900000      R     MOV     DPTR,#value
+0112 E0                MOVX    A,@DPTR
+0113 FF                MOV     R7,A
+0114 EF                MOV     A,R7
+0115 440F              ORL     A,#0FH
+0117 FF                MOV     R7,A
+0118 905123            MOV     DPTR,#05123H
+011B EF                MOV     A,R7
+011C F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 433
+011D 905124            MOV     DPTR,#05124H
+0120 E0                MOVX    A,@DPTR
+0121 FF                MOV     R7,A
+0122 EF                MOV     A,R7
+0123 54F0              ANL     A,#0F0H
+0125 FF                MOV     R7,A
+0126 900000      R     MOV     DPTR,#value
+0129 EF                MOV     A,R7
+012A F0                MOVX    @DPTR,A
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 21  
+
+                                           ; SOURCE LINE # 435
+012B 900000      R     MOV     DPTR,#value
+012E E0                MOVX    A,@DPTR
+012F FF                MOV     R7,A
+0130 EF                MOV     A,R7
+0131 440F              ORL     A,#0FH
+0133 FF                MOV     R7,A
+0134 905124            MOV     DPTR,#05124H
+0137 EF                MOV     A,R7
+0138 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 436
+0139         ?C0022:
+0139 22                RET     
+             ; FUNCTION LCD_IsReady (END)
+
+             ; FUNCTION _LCD_WrDatNib (BEGIN)
+                                           ; SOURCE LINE # 454
+0000 900000      R     MOV     DPTR,#nibble
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 455
+                                           ; SOURCE LINE # 456
+0005 120000      R     LCALL   LCD_IsReady
+                                           ; SOURCE LINE # 459
+0008 905120            MOV     DPTR,#05120H
+000B E0                MOVX    A,@DPTR
+000C FF                MOV     R7,A
+000D EF                MOV     A,R7
+000E 4420              ORL     A,#020H
+0010 FF                MOV     R7,A
+0011 EF                MOV     A,R7
+0012 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 461
+0013 905120            MOV     DPTR,#05120H
+0016 E0                MOVX    A,@DPTR
+0017 FF                MOV     R7,A
+0018 EF                MOV     A,R7
+0019 54BF              ANL     A,#0BFH
+001B FF                MOV     R7,A
+001C EF                MOV     A,R7
+001D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 465
+001E 905120            MOV     DPTR,#05120H
+0021 E0                MOVX    A,@DPTR
+0022 FF                MOV     R7,A
+0023 EF                MOV     A,R7
+0024 54F0              ANL     A,#0F0H
+0026 FF                MOV     R7,A
+0027 EF                MOV     A,R7
+0028 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 468
+0029 905120            MOV     DPTR,#05120H
+002C C083              PUSH    DPH
+002E C082              PUSH    DPL
+0030 E0                MOVX    A,@DPTR
+0031 FF                MOV     R7,A
+0032 900000      R     MOV     DPTR,#nibble
+0035 E0                MOVX    A,@DPTR
+0036 FE                MOV     R6,A
+0037 EE                MOV     A,R6
+0038 4410              ORL     A,#010H
+003A FE                MOV     R6,A
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 22  
+
+003B EF                MOV     A,R7
+003C 4E                ORL     A,R6
+003D FF                MOV     R7,A
+003E D082              POP     DPL
+0040 D083              POP     DPH
+0042 EF                MOV     A,R7
+0043 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 471
+0044 7F01              MOV     R7,#01H
+0046 7E00              MOV     R6,#00H
+0048 120000      E     LCALL   _CyDelayUs
+                                           ; SOURCE LINE # 473
+004B 905120            MOV     DPTR,#05120H
+004E E0                MOVX    A,@DPTR
+004F FF                MOV     R7,A
+0050 EF                MOV     A,R7
+0051 54EF              ANL     A,#0EFH
+0053 FF                MOV     R7,A
+0054 EF                MOV     A,R7
+0055 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 474
+0056         ?C0023:
+0056 22                RET     
+             ; FUNCTION _LCD_WrDatNib (END)
+
+             ; FUNCTION _LCD_WrCntrlNib (BEGIN)
+                                           ; SOURCE LINE # 492
+0000 900000      R     MOV     DPTR,#nibble
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 493
+                                           ; SOURCE LINE # 495
+0005 905120            MOV     DPTR,#05120H
+0008 E0                MOVX    A,@DPTR
+0009 FF                MOV     R7,A
+000A EF                MOV     A,R7
+000B 549F              ANL     A,#09FH
+000D FF                MOV     R7,A
+000E EF                MOV     A,R7
+000F F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 499
+0010 905120            MOV     DPTR,#05120H
+0013 E0                MOVX    A,@DPTR
+0014 FF                MOV     R7,A
+0015 EF                MOV     A,R7
+0016 54F0              ANL     A,#0F0H
+0018 FF                MOV     R7,A
+0019 EF                MOV     A,R7
+001A F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 502
+001B 905120            MOV     DPTR,#05120H
+001E C083              PUSH    DPH
+0020 C082              PUSH    DPL
+0022 E0                MOVX    A,@DPTR
+0023 FF                MOV     R7,A
+0024 900000      R     MOV     DPTR,#nibble
+0027 E0                MOVX    A,@DPTR
+0028 FE                MOV     R6,A
+0029 EE                MOV     A,R6
+002A 4410              ORL     A,#010H
+002C FE                MOV     R6,A
+002D EF                MOV     A,R7
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 23  
+
+002E 4E                ORL     A,R6
+002F FF                MOV     R7,A
+0030 D082              POP     DPL
+0032 D083              POP     DPH
+0034 EF                MOV     A,R7
+0035 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 505
+0036 7F01              MOV     R7,#01H
+0038 7E00              MOV     R6,#00H
+003A 120000      E     LCALL   _CyDelayUs
+                                           ; SOURCE LINE # 507
+003D 905120            MOV     DPTR,#05120H
+0040 E0                MOVX    A,@DPTR
+0041 FF                MOV     R7,A
+0042 EF                MOV     A,R7
+0043 54EF              ANL     A,#0EFH
+0045 FF                MOV     R7,A
+0046 EF                MOV     A,R7
+0047 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 508
+0048         ?C0024:
+0048 22                RET     
+             ; FUNCTION _LCD_WrCntrlNib (END)
+
+             ; FUNCTION _LCD_PrintHexUint8 (BEGIN)
+                                           ; SOURCE LINE # 527
+0000 900000      R     MOV     DPTR,#value
+0003 EF                MOV     A,R7
+0004 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 528
+                                           ; SOURCE LINE # 529
+0005 900000      R     MOV     DPTR,#value
+0008 E0                MOVX    A,@DPTR
+0009 FF                MOV     R7,A
+000A EF                MOV     A,R7
+000B C4                SWAP    A
+000C 540F              ANL     A,#0FH
+000E FF                MOV     R7,A
+000F EF                MOV     A,R7
+0010 900000      R     MOV     DPTR,#LCD_hex
+0013 93                MOVC    A,@A+DPTR
+0014 FF                MOV     R7,A
+0015 120000      R     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 530
+0018 900000      R     MOV     DPTR,#value
+001B E0                MOVX    A,@DPTR
+001C FF                MOV     R7,A
+001D EF                MOV     A,R7
+001E 540F              ANL     A,#0FH
+0020 FF                MOV     R7,A
+0021 EF                MOV     A,R7
+0022 900000      R     MOV     DPTR,#LCD_hex
+0025 93                MOVC    A,@A+DPTR
+0026 FF                MOV     R7,A
+0027 120000      R     LCALL   _LCD_PutChar
+                                           ; SOURCE LINE # 531
+002A         ?C0025:
+002A 22                RET     
+             ; FUNCTION _LCD_PrintHexUint8 (END)
+
+             ; FUNCTION _LCD_PrintHexUint16 (BEGIN)
+                                           ; SOURCE LINE # 548
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 24  
+
+0000 900000      R     MOV     DPTR,#value
+0003 EE                MOV     A,R6
+0004 F0                MOVX    @DPTR,A
+0005 A3                INC     DPTR
+0006 EF                MOV     A,R7
+0007 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 549
+                                           ; SOURCE LINE # 550
+0008 900000      R     MOV     DPTR,#value
+000B E0                MOVX    A,@DPTR
+000C FE                MOV     R6,A
+000D A3                INC     DPTR
+000E E0                MOVX    A,@DPTR
+000F FF                MOV     R7,A
+0010 EE                MOV     A,R6
+0011 FF                MOV     R7,A
+0012 7E00              MOV     R6,#00H
+0014 120000      R     LCALL   _LCD_PrintHexUint8
+                                           ; SOURCE LINE # 551
+0017 900000      R     MOV     DPTR,#value
+001A E0                MOVX    A,@DPTR
+001B FE                MOV     R6,A
+001C A3                INC     DPTR
+001D E0                MOVX    A,@DPTR
+001E FF                MOV     R7,A
+001F EF                MOV     A,R7
+0020 54FF              ANL     A,#0FFH
+0022 FF                MOV     R7,A
+0023 120000      R     LCALL   _LCD_PrintHexUint8
+                                           ; SOURCE LINE # 552
+0026         ?C0026:
+0026 22                RET     
+             ; FUNCTION _LCD_PrintHexUint16 (END)
+
+             ; FUNCTION _LCD_PrintDecUint16 (BEGIN)
+                                           ; SOURCE LINE # 569
+0000 900000      R     MOV     DPTR,#value
+0003 EE                MOV     A,R6
+0004 F0                MOVX    @DPTR,A
+0005 A3                INC     DPTR
+0006 EF                MOV     A,R7
+0007 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 570
+                                           ; SOURCE LINE # 575
+0008 900000      R     MOV     DPTR,#index
+000B E4                CLR     A
+000C F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 576
+000D 900000      R     MOV     DPTR,#numDigits
+0010 E4                CLR     A
+0011 F0                MOVX    @DPTR,A
+0012         ?C0027:
+                                           ; SOURCE LINE # 580
+0012 900000      R     MOV     DPTR,#value
+0015 E0                MOVX    A,@DPTR
+0016 FE                MOV     R6,A
+0017 A3                INC     DPTR
+0018 E0                MOVX    A,@DPTR
+0019 FF                MOV     R7,A
+001A C3                CLR     C
+001B EF                MOV     A,R7
+001C 940A              SUBB    A,#0AH
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 25  
+
+001E EE                MOV     A,R6
+001F 9400              SUBB    A,#00H
+0021 4045              JC      ?C0028
+                                           ; SOURCE LINE # 581
+                                           ; SOURCE LINE # 582
+0023 900000      R     MOV     DPTR,#value
+0026 E0                MOVX    A,@DPTR
+0027 FE                MOV     R6,A
+0028 A3                INC     DPTR
+0029 E0                MOVX    A,@DPTR
+002A FF                MOV     R7,A
+002B 7C00              MOV     R4,#00H
+002D 7D0A              MOV     R5,#0AH
+002F 120000      E     LCALL   ?C?UIDIV
+0032 AF05              MOV     R7,AR5
+0034 EF                MOV     A,R7
+0035 2430              ADD     A,#030H
+0037 FF                MOV     R7,A
+0038 900000      R     MOV     DPTR,#index
+003B E0                MOVX    A,@DPTR
+003C FE                MOV     R6,A
+003D 7400        R     MOV     A,#LOW temp
+003F 2E                ADD     A,R6
+0040 F582              MOV     DPL,A
+0042 E4                CLR     A
+0043 3400        R     ADDC    A,#HIGH temp
+0045 F583              MOV     DPH,A
+0047 EF                MOV     A,R7
+0048 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 583
+0049 900000      R     MOV     DPTR,#value
+004C E0                MOVX    A,@DPTR
+004D FE                MOV     R6,A
+004E A3                INC     DPTR
+004F E0                MOVX    A,@DPTR
+0050 FF                MOV     R7,A
+0051 7C00              MOV     R4,#00H
+0053 7D0A              MOV     R5,#0AH
+0055 120000      E     LCALL   ?C?UIDIV
+0058 900000      R     MOV     DPTR,#value
+005B EE                MOV     A,R6
+005C F0                MOVX    @DPTR,A
+005D A3                INC     DPTR
+005E EF                MOV     A,R7
+005F F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 584
+0060 900000      R     MOV     DPTR,#index
+0063 E0                MOVX    A,@DPTR
+0064 04                INC     A
+0065 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 585
+0066 80AA              SJMP    ?C0027
+0068         ?C0028:
+                                           ; SOURCE LINE # 587
+0068 900000      R     MOV     DPTR,#value
+006B E0                MOVX    A,@DPTR
+006C FE                MOV     R6,A
+006D A3                INC     DPTR
+006E E0                MOVX    A,@DPTR
+006F FF                MOV     R7,A
+0070 7C00              MOV     R4,#00H
+0072 7D0A              MOV     R5,#0AH
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 26  
+
+0074 120000      E     LCALL   ?C?UIDIV
+0077 AF05              MOV     R7,AR5
+0079 EF                MOV     A,R7
+007A 2430              ADD     A,#030H
+007C FF                MOV     R7,A
+007D 900000      R     MOV     DPTR,#index
+0080 E0                MOVX    A,@DPTR
+0081 FE                MOV     R6,A
+0082 7400        R     MOV     A,#LOW temp
+0084 2E                ADD     A,R6
+0085 F582              MOV     DPL,A
+0087 E4                CLR     A
+0088 3400        R     ADDC    A,#HIGH temp
+008A F583              MOV     DPH,A
+008C EF                MOV     A,R7
+008D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 588
+008E 900000      R     MOV     DPTR,#index
+0091 E0                MOVX    A,@DPTR
+0092 FF                MOV     R7,A
+0093 900000      R     MOV     DPTR,#numDigits
+0096 EF                MOV     A,R7
+0097 F0                MOVX    @DPTR,A
+0098         ?C0029:
+                                           ; SOURCE LINE # 591
+0098 900000      R     MOV     DPTR,#index
+009B E0                MOVX    A,@DPTR
+009C FF                MOV     R7,A
+009D EF                MOV     A,R7
+009E 64FF              XRL     A,#0FFH
+00A0 603E              JZ      ?C0030
+                                           ; SOURCE LINE # 592
+                                           ; SOURCE LINE # 593
+00A2 900000      R     MOV     DPTR,#index
+00A5 E0                MOVX    A,@DPTR
+00A6 FF                MOV     R7,A
+00A7 7400        R     MOV     A,#LOW temp
+00A9 2F                ADD     A,R7
+00AA F582              MOV     DPL,A
+00AC E4                CLR     A
+00AD 3400        R     ADDC    A,#HIGH temp
+00AF F583              MOV     DPH,A
+00B1 E0                MOVX    A,@DPTR
+00B2 FF                MOV     R7,A
+00B3 900000      R     MOV     DPTR,#index
+00B6 E0                MOVX    A,@DPTR
+00B7 FE                MOV     R6,A
+00B8 EE                MOV     A,R6
+00B9 FD                MOV     R5,A
+00BA 7C00              MOV     R4,#00H
+00BC 900000      R     MOV     DPTR,#numDigits
+00BF E0                MOVX    A,@DPTR
+00C0 FE                MOV     R6,A
+00C1 EE                MOV     A,R6
+00C2 FB                MOV     R3,A
+00C3 7A00              MOV     R2,#00H
+00C5 C3                CLR     C
+00C6 EB                MOV     A,R3
+00C7 9D                SUBB    A,R5
+00C8 FD                MOV     R5,A
+00C9 EA                MOV     A,R2
+00CA 9C                SUBB    A,R4
+C51 COMPILER V9.03   LCD                                                                   07/02/2012 19:47:03 PAGE 27  
+
+00CB FC                MOV     R4,A
+00CC 7400        R     MOV     A,#LOW number
+00CE 2D                ADD     A,R5
+00CF F582              MOV     DPL,A
+00D1 7400        R     MOV     A,#HIGH number
+00D3 3C                ADDC    A,R4
+00D4 F583              MOV     DPH,A
+00D6 EF                MOV     A,R7
+00D7 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 594
+00D8 900000      R     MOV     DPTR,#index
+00DB E0                MOVX    A,@DPTR
+00DC 14                DEC     A
+00DD F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 595
+00DE 80B8              SJMP    ?C0029
+00E0         ?C0030:
+                                           ; SOURCE LINE # 598
+00E0 900000      R     MOV     DPTR,#numDigits
+00E3 E0                MOVX    A,@DPTR
+00E4 FF                MOV     R7,A
+00E5 7400        R     MOV     A,#LOW number+01H
+00E7 2F                ADD     A,R7
+00E8 F582              MOV     DPL,A
+00EA E4                CLR     A
+00EB 3400        R     ADDC    A,#HIGH number+01H
+00ED F583              MOV     DPH,A
+00EF E4                CLR     A
+00F0 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 601
+00F1 7B01              MOV     R3,#01H
+00F3 7A00        R     MOV     R2,#HIGH number
+00F5 7900        R     MOV     R1,#LOW number
+00F7 120000      R     LCALL   _LCD_PrintString
+                                           ; SOURCE LINE # 602
+00FA         ?C0031:
+00FA 22                RET     
+             ; FUNCTION _LCD_PrintDecUint16 (END)
+
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1274    ----
+   CONSTANT SIZE    =     16    ----
+   XDATA SIZE       =     34    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,103 @@
+C51 COMPILER V9.03   GLOBALS                                                               07/02/2012 20:00:23 PAGE 1   
+
+
+C51 COMPILER V9.03, COMPILATION OF MODULE GLOBALS
+OBJECT MODULE PLACED IN .\DP8051_Keil_903\Debug\globals.obj
+COMPILER INVOKED BY: C:\Program Files (x86)\Cypress\PSoC Creator\2.1\PSoC Creator\import\keil\pk51\9.03\C51\BIN\c51.exe 
+                    -.\globals.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\globals.lst) CD DB NOIP OT(0,SIZE) INCDIR(Generated_
+                    -Source\PSoC3) OJ(.\DP8051_Keil_903\Debug\globals.obj)
+
+line level    source
+
+   1          /*
+   2           Network Stack for PSoC3-ENC28J60 hardware
+   3           -----------------------------------------
+   4           Title  : Global Variables declaration file
+   5           Author : Kartik Mankad
+   6           Date : 30-06-12
+   7           This code is licensed as CC-BY-SA 3.0
+   8           Description : This file contains declarations of
+   9                         the global variables used.
+  10          
+  11           You may edit Router IP,DNS Server IP and Webserver,Webclient Port here.
+  12          */
+  13          
+  14          #include "globals.h"
+  15          
+  16          /**Edit values as per your configuration**/
+  17          
+  18          /*IP Address of the Router*/
+  19          unsigned char routerIP[4]={192,168,1,1};
+  20          
+  21          /*IP Address of a Server*/
+  22          /*For DNS and Webclient*/
+  23           unsigned char serverIP[4];
+  24           
+  25          /*IP Address of the DNS Server*/
+  26          unsigned char dnsIP[4]={192,168,1,1};
+  27           
+  28          /*Webserver Port*/
+  29          unsigned int WWWPort=80;
+  30          
+  31          /*WebClient Port*/
+  32          unsigned int WClientPort=1000;
+  33          
+  34          /*Source UDP Packet for sending UDP Packets*/
+  35          unsigned int UDPPort=1200;
+  36          /***********************************************/
+  37          /***Do not assign values to variables below.***/
+  38          
+  39          /*IP Address of the ENC28J60*/
+  40          unsigned char deviceIP[4];
+  41          
+  42          /*MAC Address of the ENC28J60*/
+  43          unsigned char deviceMAC[6];
+  44          
+  45          /*MAC Address of the Router*/
+  46          unsigned char routerMAC[6];
+  47          
+  48          /*Bit to signify SYN-SYNACK-ACK handshake is over,
+  49          and we(the client) can send our request*/
+  50          bit WebClientQueryRTS=0;
+  51          
+  52          /*flag to signify that Reply to our(client) request
+  53          is recd,so we can now process it
+C51 COMPILER V9.03   GLOBALS                                                               07/02/2012 20:00:23 PAGE 2   
+
+  54          0 - Initial State,no Replies.
+  55          1 - Reply Recd.
+  56          2 - Reply Processed,Connection closed.
+  57          */
+  58          unsigned char WebClientDataRecd=0;
+  59          
+  60          /*Bit flag to signify that Get Query recd.*/
+  61          bit WebServerGETRecd=0;
+  62          
+  63          /*Global Query Holder*/
+  64          unsigned char* WebClientQuery[100];
+  65          
+  66          
+  67          /* [] END OF FILE */
+C51 COMPILER V9.03   GLOBALS                                                               07/02/2012 20:00:23 PAGE 3   
+
+ASSEMBLY LISTING OF GENERATED OBJECT CODE
+
+
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   ----    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =    335    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

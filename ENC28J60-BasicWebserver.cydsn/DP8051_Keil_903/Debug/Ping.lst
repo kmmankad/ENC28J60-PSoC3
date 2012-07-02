@@ -1,0 +1,569 @@
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 1   
+
+
+C51 COMPILER V9.03, COMPILATION OF MODULE PING
+OBJECT MODULE PLACED IN .\DP8051_Keil_903\Debug\Ping.obj
+COMPILER INVOKED BY: C:\Program Files (x86)\Cypress\PSoC Creator\2.1\PSoC Creator\import\keil\pk51\9.03\C51\BIN\c51.exe 
+                    -.\Ping.c NOIV LARGE MODDP2 OMF2 VB(1) PR(.\DP8051_Keil_903\Debug\Ping.lst) CD DB NOIP OT(0,SIZE) INCDIR(Generated_Source
+                    -\PSoC3) OJ(.\DP8051_Keil_903\Debug\Ping.obj)
+
+line level    source
+
+   1          /*
+   2           Network Stack for PSoC3-ENC28J60 hardware
+   3           -----------------------------------------
+   4           Title  : Ping Handling functions.
+   5           Author : Kartik Mankad
+   6           Date : 30-06-12
+   7           This code is licensed as CC-BY-SA 3.0
+   8           Description : Functions to send and receive a ping
+   9                         reply and request respectively,are contained here.
+  10          */
+  11          #include "IPStackMain.h"
+  12          
+  13          /*******************************************************************************
+  14          * Function Name: PingReply
+  15          ********************************************************************************
+  16          * Summary:
+  17          *   Generate and send a Ping reply from a received request.
+  18          *
+  19          * Parameters:
+  20          *   ping - A pointer of type ICMPhdr,to the received request's packet.
+  21          *   len - length of the recd. Ping request.          
+  22          * Returns:
+  23          *   TRUE(0)- if the Ping Reply was successfully sent.
+  24          *   FALSE(1) - if the Ping Reply was not successful in transmission.
+  25          *******************************************************************************/
+  26          unsigned int PingReply(ICMPhdr* ping,unsigned int len){
+  27   1      
+  28   1          if ( ping->type == ICMPREQUEST ){
+  29   2         /*Yes,it is a Request,lets reply.*/
+  30   2         /*Setup the packet as a reply*/
+  31   2          ping->type = ICMPREPLY;
+  32   2          ping->chksum = 0x0;
+  33   2          ping->ip.chksum = 0x0;
+  34   2          
+  35   2          /*Swap the MAC Addresses in the ETH header*/
+  36   2          memcpy( ping->ip.eth.DestAddrs, ping->ip.eth.SrcAddrs, 6);
+  37   2          memcpy( ping->ip.eth.SrcAddrs, deviceMAC,6 );
+  38   2          
+  39   2          /*Swap the IP Addresses in the IP header*/
+  40   2          memcpy( ping->ip.dest, ping->ip.source,4);
+  41   2          memcpy( ping->ip.source, deviceIP,4);
+  42   2          
+  43   2          /*Compute the checksums*/
+  44   2          ping->chksum=checksum(((unsigned char*) ping) + sizeof(IPhdr ),len - sizeof(IPhdr),0);
+  45   2          ping->ip.chksum = checksum(((unsigned char*) ping) + sizeof(EtherNetII),sizeof(IPhdr) - sizeof(EtherNe
+             -tII),0);
+  46   2          
+  47   2          /*Send it!*/
+  48   2          return(MACWrite((unsigned char*) ping, len));
+  49   2        }
+  50   1        return FALSE;
+  51   1      }
+  52          
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 2   
+
+  53          /*******************************************************************************
+  54          * Function Name: SendPing
+  55          ********************************************************************************
+  56          * Summary:
+  57          *   Generate and send a Ping request to an IP specified by targetIP
+  58          *
+  59          * Parameters:
+  60          *   targetIP - IP Address to which the ping request will be directed.
+  61          *   example: unsigned char LabPC_IP[]={192,168,1,15}; then
+  62          *               ..
+  63          *              SendPing(LabPC_IP);
+  64          * Returns:
+  65          *   TRUE(0)- if the Ping request was successfully sent.
+  66          *   FALSE(1) - if the Ping request was not successful in transmission.
+  67          *******************************************************************************/
+  68          unsigned int SendPing( unsigned char* targetIP ){
+  69   1          unsigned int i;
+  70   1          
+  71   1          /*declare an ICMP header for our ping request packet*/
+  72   1          ICMPhdr ping;
+  73   1          
+  74   1          /*Setup the IP header part of it*/
+  75   1          SetupBasicIPPacket( (unsigned char*)&ping, ICMPPROTOCOL, targetIP );
+  76   1          
+  77   1          /*Setup the Ping flags*/
+  78   1          ping.ip.flags = 0x0;
+  79   1          ping.type = 0x8;
+  80   1          ping.codex = 0x0;
+  81   1          ping.chksum = 0x0;
+  82   1          ping.iden = (0x1);
+  83   1          ping.seqNum = (76);
+  84   1          
+  85   1          /*Fill in the dummy data*/
+  86   1          for(i=0;i<18;i++){
+  87   2              *((unsigned char*)&ping+sizeof(ICMPhdr)+i)='A'+i;
+  88   2          }
+  89   1          /*Write the length field*/
+  90   1          ping.ip.len = (60-sizeof(EtherNetII));
+  91   1          
+  92   1          /*Compute the checksums*/
+  93   1          ping.chksum=checksum(((unsigned char*)&ping) + sizeof(IPhdr ),(sizeof(ICMPhdr) - sizeof(IPhdr))+18,0);
+  94   1          ping.ip.chksum = checksum(((unsigned char*)&ping) + sizeof(EtherNetII),sizeof(IPhdr) - sizeof(EtherNet
+             -II),0);
+  95   1          
+  96   1          /*Send it!*/
+  97   1          return(MACWrite( (unsigned char*)&ping, sizeof(ICMPhdr)+18 ));  
+  98   1      }
+  99          
+ 100          
+ 101          /* [] END OF FILE */
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 3   
+
+ASSEMBLY LISTING OF GENERATED OBJECT CODE
+
+
+             ; FUNCTION _PingReply (BEGIN)
+                                           ; SOURCE LINE # 26
+0000 900000      R     MOV     DPTR,#ping
+0003 120000      E     LCALL   ?C?PSTXDATA
+0006 900000      R     MOV     DPTR,#len
+0009 EC                MOV     A,R4
+000A F0                MOVX    @DPTR,A
+000B A3                INC     DPTR
+000C ED                MOV     A,R5
+000D F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 28
+000E 900000      R     MOV     DPTR,#ping
+0011 120000      E     LCALL   ?C?PLDXDATA
+0014 E9                MOV     A,R1
+0015 2422              ADD     A,#022H
+0017 F9                MOV     R1,A
+0018 EA                MOV     A,R2
+0019 3400              ADDC    A,#00H
+001B FA                MOV     R2,A
+001C 120000      E     LCALL   ?C?CLDPTR
+001F FF                MOV     R7,A
+0020 EF                MOV     A,R7
+0021 6408              XRL     A,#08H
+0023 6003              JZ      $ + 5H
+0025 020000      R     LJMP    ?C0001
+                                           ; SOURCE LINE # 31
+0028 900000      R     MOV     DPTR,#ping
+002B 120000      E     LCALL   ?C?PLDXDATA
+002E E9                MOV     A,R1
+002F 2422              ADD     A,#022H
+0031 F9                MOV     R1,A
+0032 EA                MOV     A,R2
+0033 3400              ADDC    A,#00H
+0035 FA                MOV     R2,A
+0036 E4                CLR     A
+0037 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 32
+003A 900000      R     MOV     DPTR,#ping
+003D 120000      E     LCALL   ?C?PLDXDATA
+0040 E9                MOV     A,R1
+0041 2424              ADD     A,#024H
+0043 F9                MOV     R1,A
+0044 EA                MOV     A,R2
+0045 3400              ADDC    A,#00H
+0047 FA                MOV     R2,A
+0048 E4                CLR     A
+0049 75F000            MOV     B,#00H
+004C 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 33
+004F 900000      R     MOV     DPTR,#ping
+0052 120000      E     LCALL   ?C?PLDXDATA
+0055 E9                MOV     A,R1
+0056 2418              ADD     A,#018H
+0058 F9                MOV     R1,A
+0059 EA                MOV     A,R2
+005A 3400              ADDC    A,#00H
+005C FA                MOV     R2,A
+005D E4                CLR     A
+005E 75F000            MOV     B,#00H
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 4   
+
+0061 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 36
+0064 900000      R     MOV     DPTR,#ping
+0067 120000      E     LCALL   ?C?PLDXDATA
+006A E9                MOV     A,R1
+006B 2406              ADD     A,#06H
+006D F9                MOV     R1,A
+006E EA                MOV     A,R2
+006F 3400              ADDC    A,#00H
+0071 FA                MOV     R2,A
+0072 C003              PUSH    AR3
+0074 C002              PUSH    AR2
+0076 C001              PUSH    AR1
+0078 900000      R     MOV     DPTR,#ping
+007B 120000      E     LCALL   ?C?PLDXDATA
+007E A801              MOV     R0,AR1
+0080 AC02              MOV     R4,AR2
+0082 AD03              MOV     R5,AR3
+0084 D001              POP     AR1
+0086 D002              POP     AR2
+0088 D003              POP     AR3
+008A 7E00              MOV     R6,#00H
+008C 7F06              MOV     R7,#06H
+008E 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 37
+0091 7B01              MOV     R3,#01H
+0093 7A00        E     MOV     R2,#HIGH deviceMAC
+0095 7900        E     MOV     R1,#LOW deviceMAC
+0097 C003              PUSH    AR3
+0099 C002              PUSH    AR2
+009B C001              PUSH    AR1
+009D 900000      R     MOV     DPTR,#ping
+00A0 120000      E     LCALL   ?C?PLDXDATA
+00A3 E9                MOV     A,R1
+00A4 2406              ADD     A,#06H
+00A6 F9                MOV     R1,A
+00A7 EA                MOV     A,R2
+00A8 3400              ADDC    A,#00H
+00AA FA                MOV     R2,A
+00AB A801              MOV     R0,AR1
+00AD AC02              MOV     R4,AR2
+00AF AD03              MOV     R5,AR3
+00B1 D001              POP     AR1
+00B3 D002              POP     AR2
+00B5 D003              POP     AR3
+00B7 7E00              MOV     R6,#00H
+00B9 7F06              MOV     R7,#06H
+00BB 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 40
+00BE 900000      R     MOV     DPTR,#ping
+00C1 120000      E     LCALL   ?C?PLDXDATA
+00C4 E9                MOV     A,R1
+00C5 241A              ADD     A,#01AH
+00C7 F9                MOV     R1,A
+00C8 EA                MOV     A,R2
+00C9 3400              ADDC    A,#00H
+00CB FA                MOV     R2,A
+00CC C003              PUSH    AR3
+00CE C002              PUSH    AR2
+00D0 C001              PUSH    AR1
+00D2 900000      R     MOV     DPTR,#ping
+00D5 120000      E     LCALL   ?C?PLDXDATA
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 5   
+
+00D8 E9                MOV     A,R1
+00D9 241E              ADD     A,#01EH
+00DB F9                MOV     R1,A
+00DC EA                MOV     A,R2
+00DD 3400              ADDC    A,#00H
+00DF FA                MOV     R2,A
+00E0 A801              MOV     R0,AR1
+00E2 AC02              MOV     R4,AR2
+00E4 AD03              MOV     R5,AR3
+00E6 D001              POP     AR1
+00E8 D002              POP     AR2
+00EA D003              POP     AR3
+00EC 7E00              MOV     R6,#00H
+00EE 7F04              MOV     R7,#04H
+00F0 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 41
+00F3 7B01              MOV     R3,#01H
+00F5 7A00        E     MOV     R2,#HIGH deviceIP
+00F7 7900        E     MOV     R1,#LOW deviceIP
+00F9 C003              PUSH    AR3
+00FB C002              PUSH    AR2
+00FD C001              PUSH    AR1
+00FF 900000      R     MOV     DPTR,#ping
+0102 120000      E     LCALL   ?C?PLDXDATA
+0105 E9                MOV     A,R1
+0106 241A              ADD     A,#01AH
+0108 F9                MOV     R1,A
+0109 EA                MOV     A,R2
+010A 3400              ADDC    A,#00H
+010C FA                MOV     R2,A
+010D A801              MOV     R0,AR1
+010F AC02              MOV     R4,AR2
+0111 AD03              MOV     R5,AR3
+0113 D001              POP     AR1
+0115 D002              POP     AR2
+0117 D003              POP     AR3
+0119 7E00              MOV     R6,#00H
+011B 7F04              MOV     R7,#04H
+011D 120000      E     LCALL   ?C?COPYAMD
+                                           ; SOURCE LINE # 44
+0120 900000      R     MOV     DPTR,#ping
+0123 120000      E     LCALL   ?C?PLDXDATA
+0126 E9                MOV     A,R1
+0127 2422              ADD     A,#022H
+0129 F9                MOV     R1,A
+012A EA                MOV     A,R2
+012B 3400              ADDC    A,#00H
+012D FA                MOV     R2,A
+012E 900000      R     MOV     DPTR,#len
+0131 E0                MOVX    A,@DPTR
+0132 FE                MOV     R6,A
+0133 A3                INC     DPTR
+0134 E0                MOVX    A,@DPTR
+0135 FF                MOV     R7,A
+0136 EF                MOV     A,R7
+0137 24DE              ADD     A,#0DEH
+0139 FD                MOV     R5,A
+013A EE                MOV     A,R6
+013B 34FF              ADDC    A,#0FFH
+013D FC                MOV     R4,A
+013E 900000      E     MOV     DPTR,#?_checksum?BYTE+05H
+0141 E4                CLR     A
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 6   
+
+0142 F0                MOVX    @DPTR,A
+0143 120000      E     LCALL   _checksum
+0146 900000      R     MOV     DPTR,#ping
+0149 120000      E     LCALL   ?C?PLDXDATA
+014C E9                MOV     A,R1
+014D 2424              ADD     A,#024H
+014F F9                MOV     R1,A
+0150 EA                MOV     A,R2
+0151 3400              ADDC    A,#00H
+0153 FA                MOV     R2,A
+0154 EE                MOV     A,R6
+0155 8FF0              MOV     B,R7
+0157 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 45
+015A 900000      R     MOV     DPTR,#ping
+015D 120000      E     LCALL   ?C?PLDXDATA
+0160 E9                MOV     A,R1
+0161 240E              ADD     A,#0EH
+0163 F9                MOV     R1,A
+0164 EA                MOV     A,R2
+0165 3400              ADDC    A,#00H
+0167 FA                MOV     R2,A
+0168 900000      E     MOV     DPTR,#?_checksum?BYTE+05H
+016B E4                CLR     A
+016C F0                MOVX    @DPTR,A
+016D 7D14              MOV     R5,#014H
+016F 7C00              MOV     R4,#00H
+0171 120000      E     LCALL   _checksum
+0174 900000      R     MOV     DPTR,#ping
+0177 120000      E     LCALL   ?C?PLDXDATA
+017A E9                MOV     A,R1
+017B 2418              ADD     A,#018H
+017D F9                MOV     R1,A
+017E EA                MOV     A,R2
+017F 3400              ADDC    A,#00H
+0181 FA                MOV     R2,A
+0182 EE                MOV     A,R6
+0183 8FF0              MOV     B,R7
+0185 120000      E     LCALL   ?C?ISTPTR
+                                           ; SOURCE LINE # 48
+0188 900000      R     MOV     DPTR,#ping
+018B 120000      E     LCALL   ?C?PLDXDATA
+018E 900000      R     MOV     DPTR,#len
+0191 E0                MOVX    A,@DPTR
+0192 FC                MOV     R4,A
+0193 A3                INC     DPTR
+0194 E0                MOVX    A,@DPTR
+0195 FD                MOV     R5,A
+0196 120000      E     LCALL   _MACWrite
+0199 7E00              MOV     R6,#00H
+019B 22                RET     
+                                           ; SOURCE LINE # 49
+019C         ?C0001:
+                                           ; SOURCE LINE # 50
+019C 7E00              MOV     R6,#00H
+019E 7F01              MOV     R7,#01H
+                                           ; SOURCE LINE # 51
+01A0         ?C0002:
+01A0 22                RET     
+             ; FUNCTION _PingReply (END)
+
+             ; FUNCTION _SendPing (BEGIN)
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 7   
+
+                                           ; SOURCE LINE # 68
+0000 900000      R     MOV     DPTR,#targetIP
+0003 120000      E     LCALL   ?C?PSTXDATA
+                                           ; SOURCE LINE # 75
+0006 7B01              MOV     R3,#01H
+0008 7A00        R     MOV     R2,#HIGH ping
+000A 7900        R     MOV     R1,#LOW ping
+000C C003              PUSH    AR3
+000E C002              PUSH    AR2
+0010 C001              PUSH    AR1
+0012 900000      R     MOV     DPTR,#targetIP
+0015 120000      E     LCALL   ?C?PLDXDATA
+0018 900000      E     MOV     DPTR,#?_SetupBasicIPPacket?BYTE+04H
+001B 120000      E     LCALL   ?C?PSTXDATA
+001E D001              POP     AR1
+0020 D002              POP     AR2
+0022 D003              POP     AR3
+0024 7D01              MOV     R5,#01H
+0026 120000      E     LCALL   _SetupBasicIPPacket
+                                           ; SOURCE LINE # 78
+0029 900000      R     MOV     DPTR,#ping+014H
+002C E0                MOVX    A,@DPTR
+002D FE                MOV     R6,A
+002E A3                INC     DPTR
+002F E0                MOVX    A,@DPTR
+0030 FF                MOV     R7,A
+0031 EF                MOV     A,R7
+0032 541F              ANL     A,#01FH
+0034 FF                MOV     R7,A
+0035 900000      R     MOV     DPTR,#ping+014H
+0038 EE                MOV     A,R6
+0039 F0                MOVX    @DPTR,A
+003A A3                INC     DPTR
+003B EF                MOV     A,R7
+003C F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 79
+003D 900000      R     MOV     DPTR,#ping+022H
+0040 7408              MOV     A,#08H
+0042 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 80
+0043 900000      R     MOV     DPTR,#ping+023H
+0046 E4                CLR     A
+0047 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 81
+0048 900000      R     MOV     DPTR,#ping+024H
+004B E4                CLR     A
+004C F0                MOVX    @DPTR,A
+004D A3                INC     DPTR
+004E E4                CLR     A
+004F F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 82
+0050 900000      R     MOV     DPTR,#ping+026H
+0053 E4                CLR     A
+0054 F0                MOVX    @DPTR,A
+0055 A3                INC     DPTR
+0056 7401              MOV     A,#01H
+0058 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 83
+0059 900000      R     MOV     DPTR,#ping+028H
+005C E4                CLR     A
+005D F0                MOVX    @DPTR,A
+005E A3                INC     DPTR
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 8   
+
+005F 744C              MOV     A,#04CH
+0061 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 86
+0062 900000      R     MOV     DPTR,#i
+0065 E4                CLR     A
+0066 F0                MOVX    @DPTR,A
+0067 A3                INC     DPTR
+0068 E4                CLR     A
+0069 F0                MOVX    @DPTR,A
+006A         ?C0003:
+006A 900000      R     MOV     DPTR,#i
+006D E0                MOVX    A,@DPTR
+006E FE                MOV     R6,A
+006F A3                INC     DPTR
+0070 E0                MOVX    A,@DPTR
+0071 FF                MOV     R7,A
+0072 C3                CLR     C
+0073 EF                MOV     A,R7
+0074 9412              SUBB    A,#012H
+0076 EE                MOV     A,R6
+0077 9400              SUBB    A,#00H
+0079 5030              JNC     ?C0004
+                                           ; SOURCE LINE # 87
+007B 900000      R     MOV     DPTR,#i
+007E E0                MOVX    A,@DPTR
+007F FE                MOV     R6,A
+0080 A3                INC     DPTR
+0081 E0                MOVX    A,@DPTR
+0082 FF                MOV     R7,A
+0083 EF                MOV     A,R7
+0084 2441              ADD     A,#041H
+0086 FF                MOV     R7,A
+0087 900000      R     MOV     DPTR,#i
+008A E0                MOVX    A,@DPTR
+008B FC                MOV     R4,A
+008C A3                INC     DPTR
+008D E0                MOVX    A,@DPTR
+008E FD                MOV     R5,A
+008F 7B01              MOV     R3,#01H
+0091 7A00        R     MOV     R2,#HIGH ping+02AH
+0093 7900        R     MOV     R1,#LOW ping+02AH
+0095 E9                MOV     A,R1
+0096 2D                ADD     A,R5
+0097 F9                MOV     R1,A
+0098 EA                MOV     A,R2
+0099 3C                ADDC    A,R4
+009A FA                MOV     R2,A
+009B EF                MOV     A,R7
+009C 120000      E     LCALL   ?C?CSTPTR
+                                           ; SOURCE LINE # 88
+009F         ?C0005:
+009F 900000      R     MOV     DPTR,#i
+00A2 E4                CLR     A
+00A3 75F001            MOV     B,#01H
+00A6 120000      E     LCALL   ?C?IILDX
+00A9 80BF              SJMP    ?C0003
+00AB         ?C0004:
+                                           ; SOURCE LINE # 90
+00AB 900000      R     MOV     DPTR,#ping+010H
+00AE E4                CLR     A
+00AF F0                MOVX    @DPTR,A
+00B0 A3                INC     DPTR
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 9   
+
+00B1 742E              MOV     A,#02EH
+00B3 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 93
+00B4 7B01              MOV     R3,#01H
+00B6 7A00        R     MOV     R2,#HIGH ping+022H
+00B8 7900        R     MOV     R1,#LOW ping+022H
+00BA 900000      E     MOV     DPTR,#?_checksum?BYTE+05H
+00BD E4                CLR     A
+00BE F0                MOVX    @DPTR,A
+00BF 7D1A              MOV     R5,#01AH
+00C1 7C00              MOV     R4,#00H
+00C3 120000      E     LCALL   _checksum
+00C6 900000      R     MOV     DPTR,#ping+024H
+00C9 EE                MOV     A,R6
+00CA F0                MOVX    @DPTR,A
+00CB A3                INC     DPTR
+00CC EF                MOV     A,R7
+00CD F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 94
+00CE 7B01              MOV     R3,#01H
+00D0 7A00        R     MOV     R2,#HIGH ping+0EH
+00D2 7900        R     MOV     R1,#LOW ping+0EH
+00D4 900000      E     MOV     DPTR,#?_checksum?BYTE+05H
+00D7 E4                CLR     A
+00D8 F0                MOVX    @DPTR,A
+00D9 7D14              MOV     R5,#014H
+00DB 7C00              MOV     R4,#00H
+00DD 120000      E     LCALL   _checksum
+00E0 900000      R     MOV     DPTR,#ping+018H
+00E3 EE                MOV     A,R6
+00E4 F0                MOVX    @DPTR,A
+00E5 A3                INC     DPTR
+00E6 EF                MOV     A,R7
+00E7 F0                MOVX    @DPTR,A
+                                           ; SOURCE LINE # 97
+00E8 7B01              MOV     R3,#01H
+00EA 7A00        R     MOV     R2,#HIGH ping
+00EC 7900        R     MOV     R1,#LOW ping
+00EE 7D3C              MOV     R5,#03CH
+00F0 7C00              MOV     R4,#00H
+00F2 120000      E     LCALL   _MACWrite
+00F5 7E00              MOV     R6,#00H
+                                           ; SOURCE LINE # 98
+00F7         ?C0006:
+00F7 22                RET     
+             ; FUNCTION _SendPing (END)
+
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    665    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     52    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+C51 COMPILER V9.03   PING                                                                  07/02/2012 19:47:00 PAGE 10  
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
