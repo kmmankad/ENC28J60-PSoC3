@@ -14,7 +14,7 @@
 #define IPSTACK_H
 
 /*Maximum length of packet that the device will entertain*/
-#define MAXPACKETLEN 300
+#define MAXPACKETLEN 600
 
 /*UDP Port for DNS Lookup*/
 #define DNSUDPPORT 53
@@ -71,10 +71,8 @@ typedef struct
   unsigned char version : 4;
   unsigned char diffsf;
   unsigned int len;
-  unsigned int ident;
-  unsigned int fragmentOffset1: 5;
-  unsigned int flags : 3;
-  unsigned int fragmentOffset2 : 8;
+  unsigned int ident;  
+  unsigned int flags;
   unsigned char ttl;
   unsigned char protocol;
   unsigned int chksum;
@@ -295,7 +293,10 @@ unsigned int GetPacket( int proto, unsigned char* packet );
 * Returns:
 *   The length of ACK packet made.
 *******************************************************************************/
-unsigned int ackTcp(TCPhdr* tcp, unsigned int len,bit syn_val);
+unsigned int ackTcp(TCPhdr* tcp, unsigned int len,unsigned char syn_val,unsigned char fin_val,unsigned char rst_val,unsigned int psh_val);
+
+
+
 #endif
 
 /* [] END OF FILE */

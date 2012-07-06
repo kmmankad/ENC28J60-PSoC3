@@ -21,7 +21,7 @@ unsigned char routerIP[4]={192,168,1,1};
 /*IP Address of a Server*/
 /*For DNS and Webclient*/
  unsigned char serverIP[4];
- 
+ //
 /*IP Address of the DNS Server*/
 unsigned char dnsIP[4]={192,168,1,1};
  
@@ -29,7 +29,7 @@ unsigned char dnsIP[4]={192,168,1,1};
 unsigned int WWWPort=80;
 
 /*WebClient Port*/
-unsigned int WClientPort=1000;
+unsigned int WClientPort=15979;
 
 /*Source UDP Packet for sending UDP Packets*/
 unsigned int UDPPort=1200;
@@ -44,24 +44,7 @@ unsigned char deviceMAC[6];
 
 /*MAC Address of the Router*/
 unsigned char routerMAC[6];
+unsigned char WebClientStatus=0;
 
-/*Bit to signify SYN-SYNACK-ACK handshake is over,
-and we(the client) can send our request*/
-bit WebClientQueryRTS=0;
-
-/*flag to signify that Reply to our(client) request
-is recd,so we can now process it
-0 - Initial State,no Replies.
-1 - Reply Recd.
-2 - Reply Processed,Connection closed.
-*/
-unsigned char WebClientDataRecd=0;
-
-/*Bit flag to signify that Get Query recd.*/
-bit WebServerGETRecd=0;
-
-/*Global Query Holder*/
-unsigned char* WebClientQuery[100];
-
-
+unsigned char WebClientQuery[250];
 /* [] END OF FILE */

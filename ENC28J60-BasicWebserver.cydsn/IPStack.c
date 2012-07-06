@@ -153,11 +153,11 @@ void SetupBasicIPPacket( unsigned char* packet, unsigned char proto, unsigned ch
     /*ETH type is an IP packet*/
     ip->eth.type = (IPPACKET);
     
-    /*Swap the MAC Addresses in the ETH header*/
+    /*Set the MAC Addresses in the ETH header*/
     memcpy( ip->eth.DestAddrs, routerMAC, sizeof(routerMAC) );
     memcpy( ip->eth.SrcAddrs, deviceMAC, sizeof(deviceMAC) );
     
-    /*Swap the IP Addresses in the IP header*/
+    /*Set the IP Addresses in the IP header*/
     memcpy( ip->source , deviceIP, sizeof(deviceIP) );
     memcpy( ip->dest, destIP, sizeof(deviceIP) );
     
@@ -165,10 +165,12 @@ void SetupBasicIPPacket( unsigned char* packet, unsigned char proto, unsigned ch
     ip->version = 0x4;
     ip->hdrlen = 0x5;
     ip->diffsf = 0;
-    ip->ident = 2;/*Random*/
-    ip->flags = 0x2;/*Dont Fragment*/
-    ip->fragmentOffset1 = 0x0;
-    ip->fragmentOffset2 = 0x0;
+    ip->ident = 2;/*Random*/ 
+	ip->flags = 0x4000;
+	  	//ip->fragmentOffset1 = 0x00;  	
+  	//ip->fragmentOffset2 = 0x00;
+
+
     ip->ttl = 128;
     
     /*Set the type of IP Protocol*/
@@ -183,7 +185,8 @@ void SetupBasicIPPacket( unsigned char* packet, unsigned char proto, unsigned ch
 ********************************************************************************
 * Summary:
 *   This function checks for packets recd,and has been designed to
-*   automatically reply to Ping Requests and ARP Requests.
+*   automatically reply to Ping Requests and ARP Requests.It also handles WebServer
+*	and WebClient state machines.
 *   If you wish to process Ping Replies,edit the lines marked for the same.
 *
 *   It returns '1' if it finds a packet of type proto.(UDP/TCP/ICMP etc)
@@ -235,49 +238,50 @@ unsigned int GetPacket( int proto, unsigned char* packet ){
                 }
             }
             
-            if((ip->protocol==TCPPROTOCOL)){
-                TCPhdr* Pack = (TCPhdr*)packet;
-                
-                //Reply with a SYNACK to a SYN(WebServer)
-                //or with an ACK to a SYNACK
-                if(Pack->SYN==1){
-                    if((Pack->destPort==WClientPort)&&(Pack->ACK==1)){
-                        //WebClient
-                        //We mustve sent a SYN somewhere externally,
-                        //We have a SYN-ACK from a Webserver.
-                        //Reply with an ACK.
-                        WebClientQueryRTS=1;//Flag set.Client can now send query.
-                        return(ackTcp(Pack,(Pack->ip.len)+14,0));//Send that ACK.
-                    }else if((Pack->destPort==WWWPort)&&(Pack->ACK==0)){
-                        //WebServer
-                        //Its a SYN from a client,
-                        //reply with a SYNACK.
-                        return(ackTcp(Pack,(Pack->ip.len)+14,1));
-                    }
-                }
-                
-                //If we get a PSH-ACK,its the GET query or Client Reply.
-                //If we get an RST/FINACK,reply with an ACK,
-                //If its a normal ACK,do nothing.
-                if((Pack->PSH==1)&&(Pack->ACK==1)){
-                    if(Pack->destPort==WWWPort){
-                        //Its a query to the server.
-                        WebServerGETRecd=1;
-                    }else if(Pack->destPort==WClientPort){
-                        //Its a reply to our client.
-                        WebClientDataRecd=1;
-                    }
-                }
-                 
-                    
-                /*If we get an RST/FINACK,reply with an ACK*/
-                if((Pack->FIN==1)||(Pack->RST==1)){
-                    return(ackTcp(Pack,(Pack->ip.len)+14,0));
-                }
-
-                }
-
-           
+			if((ip->protocol==TCPPROTOCOL)){
+				TCPhdr* Pack = (TCPhdr*)packet;
+			/*<-------------WEBSERVER HANDLER START----------------->*/
+				if(Pack->destPort==WWWPort){
+					if(Pack->SYN==1){
+						/*Its a SYN from a Client.*/
+						/*Reply with a SYNACK*/
+						return(ackTcp(Pack,(Pack->ip.len)+14,1,0,0,0));
+			  		}else if((Pack->PSH==1)&&(Pack->ACK==1)){
+						/*We have recd. a request from a Client.*/
+						/*Set flag to fire a reply*/
+						return(WebServer_ProcessRequest(Pack));
+					}else if((Pack->FIN==1)){
+						/*We've got a FIN(ACK?) from a client.*/
+						/*ACK that,and thats the end of a connection*/
+						return(ackTcp(Pack,(Pack->ip.len)+14,0,0,0,0));
+					}	
+			  }
+			/*<=============WEBSERVER HANDLER END====================>*/
+								
+								  
+			/*<-------------WEBCLIENT HANDLER START------------------>*/
+			if((Pack->destPort==WClientPort)&&(memcmp(Pack->ip.source,serverIP,4)==0)){
+				if((Pack->SYN==1)&&(Pack->ACK==1)){
+					ackTcp(Pack,(Pack->ip.len)+14,0,0,0,0);
+					WebClient_BrowseURL(Pack);
+					WebClientStatus=3;
+				}else{
+					if( (WebClientStatus==3)&&((len-sizeof(TCPhdr))>12)) {
+						/*Process Data*/
+						WebClient_ProcessReply(Pack);
+					}
+					if(Pack->FIN==1){
+						/*Reply with a FIN-ACK*/
+						ackTcp(Pack,(Pack->ip.len)+14,0,1,0,0);
+						WebClientStatus=0;
+					}else if( ((len-sizeof(TCPhdr))>0 )&&(WebClientStatus!=0)) {
+						/*Just ACK stuff that comes in*/
+						ackTcp(Pack,(Pack->ip.len)+14,0,0,0,0);
+					}
+				}
+			}
+			/*<=============WEBCLIENT HANDLER END====================>*/            
+			}
         
             /*Packet type check,as passed via proto*/
             if( ip->protocol == proto ){
@@ -285,10 +289,135 @@ unsigned int GetPacket( int proto, unsigned char* packet ){
                 return 1;
             }
         
-        }
+        
     }
     
     return 0;
+}
+}
+
+
+/*******************************************************************************
+* Function Name: IPstackIdle
+********************************************************************************
+* Summary:
+*   This function can be called in the Idle period of the stack,
+*   possibly in an endless loop after it has finished the main tasks.
+*   It uses GetPacket,and so can auto-reply to Pings and ARP requests.
+* Parameters:
+*   none.
+*             
+* Returns:
+*  none.
+*******************************************************************************/
+void IPstackIdle(void){
+    unsigned char packet[MAXPACKETLEN];
+    TCPhdr* TCPacket = (TCPhdr*)packet;
+    
+    /*Check if Link is Up*/
+    if(IsLinkUp()==0){
+        return;
+    }
+    
+    /*Nothing specific,just field the Pings and ARP Requests,SYN handshakes and GETs*/
+    GetPacket(0,packet);
+	
+	if(WebClientStatus==1){
+		/*Send a SYN*/
+		WebClient_SendSYN();
+		WebClientStatus=2;
+		return;
+	}
+
+}
+
+/*******************************************************************************
+* Function Name: ackTcp
+********************************************************************************
+* Summary:
+*   Creates an TCP ACK packet from a recd TCP packet.This is used to create
+*   all kinds of ACK-s(including SYN-ACK) during an HTTP Transaction.
+*
+* Parameters:
+*   tcp - pointer to the start of a TCP packet which is to be ACK'd.
+*   len - length of the TCP packet which is to be ACK'd.
+*   syn_val - If this is 1,then the ack will be a SYN ACK with MSS=1408.
+*             If this is 0,then its a bare-bones ACK.
+*             
+* Returns:
+*   The length of ACK packet made.
+*******************************************************************************/
+unsigned int ackTcp(TCPhdr* tcp, unsigned int len,unsigned char syn_val,unsigned char fin_val,unsigned char rst_val,unsigned int psh_val){
+    char ack[4];
+    unsigned int destPort;
+    unsigned char dlength=0;
+    unsigned char* datptr;
+  
+    /*Zero out the checksum fields*/
+    tcp->chksum = 0x0;
+    tcp->ip.chksum = 0x0;
+  
+    /*Swap the MACs in the ETH header*/
+    memcpy( tcp->ip.eth.DestAddrs, tcp->ip.eth.SrcAddrs, 6 );
+    memcpy( tcp->ip.eth.SrcAddrs, deviceMAC, 6 );
+  
+    /*Swap the IP Addresses in the IP header*/
+    memcpy( tcp->ip.dest, tcp->ip.source, 4 );
+    memcpy( tcp->ip.source, deviceIP, 4 );
+  
+    /*Swap the Ports in the TCP header*/
+    destPort = tcp->destPort;
+    tcp->destPort = tcp->sourcePort;
+    tcp->sourcePort = destPort;
+    /*Swap the ACK and Sequence numbers*/
+    memcpy( ack, tcp->ackNo, sizeof(ack) );
+    memcpy( tcp->ackNo, tcp->seqNo, sizeof(ack) );
+    memcpy( tcp->seqNo, ack, sizeof(ack) );
+	
+	
+    /*Increment Ack Number if its a SYN,or FIN(ACK) packet,
+    If not,then fill it accordingly.*/
+    if( (tcp->SYN==1)|| ((tcp->FIN==1)&&(tcp->PSH==0)) ) {//
+        /*Increment Ack Number if its a SYN,or FIN packet.*/
+        add32( tcp->ackNo, 1 );
+    }else{
+        add32( tcp->ackNo, len - sizeof(TCPhdr) );
+    }
+
+    /*If its supposed to be a SYNACK packet,then add MSS option.
+    MSS= Maximum segment size
+    If not,then set the appropriate value in the length field of TCP
+    and dont add any options.*/
+    if(syn_val){
+        tcp->SYN = syn_val;
+        datptr = (unsigned char*)(tcp) + 0x34 ;
+        *datptr++=0x02;
+        *datptr++=0x04;
+        *datptr++=HI8(300);
+        *datptr++=LO8(300);
+        tcp->hdrLen = 0x06;//6 because its length is 24bytes.Multiples of 4bytes.
+        dlength+=4;//MSS option is 4bytes,so length of (data)options=4. 
+    }else{
+        tcp->SYN = 0;
+        tcp->hdrLen = 0x05;//5 because its length is 20bytes.Multiples of 4bytes.
+    }
+
+    tcp->ACK=1;//Set the ACK flag.
+    tcp->PSH=psh_val;//Clear the PSH flag.
+    tcp->FIN=fin_val;//Clear the FIN flag.
+    tcp->RST=rst_val;//Clear the RST flag.
+    
+    /*Length of the Packet*/
+    len = sizeof(TCPhdr)+dlength;
+    
+    /*IP Length field.*/
+    tcp->ip.len = (len-sizeof(EtherNetII));
+    
+    /*Compute the checksums*/
+    tcp->ip.chksum=checksum((unsigned char*)tcp + sizeof(EtherNetII),sizeof(IPhdr)-sizeof(EtherNetII),0);
+    tcp->chksum = checksum((unsigned char*)tcp->ip.source,0x08+0x14+dlength,2);
+
+    return(MACWrite((unsigned char*)tcp,len));
 }
 
 /*******************************************************************************
@@ -343,151 +472,5 @@ unsigned int IPstack_Start(unsigned char devMAC[6],unsigned char devIP[4]){
     return FALSE;
 }
 
-/*******************************************************************************
-* Function Name: IPstackIdle
-********************************************************************************
-* Summary:
-*   This function can be called in the Idle period of the stack,
-*   possibly in an endless loop after it has finished the main tasks.
-*   It uses GetPacket,and so can auto-reply to Pings and ARP requests.
-* Parameters:
-*   none.
-*             
-* Returns:
-*  none.
-*******************************************************************************/
-void IPstackIdle(void){
-    unsigned char packet[MAXPACKETLEN];
-    TCPhdr* TCPacket = (TCPhdr*)packet;
-    
-    /*Check if Link is Up*/
-    if(IsLinkUp()==0){
-        return;
-    }
-    
-    /*Nothing specific,just field the Pings and ARP Requests,SYN handshakes and GETs*/
-    GetPacket(0,packet);
-    
-    if(WebServerGETRecd==1){
-        WebServer_ProcessRequest(TCPacket);
-        WebServerGETRecd=0;
-    }
-    
-    if(WebClientQueryRTS==1){
-        /*Handshake over,we can send our GET/POST query etc.*/
-        WebClient_BrowseURL(WebClientQuery,TCPacket);
-        WebClientQueryRTS=0;//Reset Flag.
-    }
-    
-    if(WebClientDataRecd==1){
-        /*Call your reply processing function here.*/
-        WebClient_ProcessReply(TCPacket);
-        
-        /*Send an ACK to acknowledge the Client Query Reply.*/
-        ackTcp(TCPacket,(TCPacket->ip.len)+14,0);
-        
-        /*----Now Send a FINACK----*/
-        /*Set the FIN flag.*/
-        TCPacket->FIN=1;
-        /*Zero out the checksums*/
-        TCPacket->ip.chksum=0x0000;
-        TCPacket->chksum=0x0000;
-        /*Compute the checksums*/
-        TCPacket->ip.chksum=checksum((unsigned char*)TCPacket + sizeof(EtherNetII),sizeof(IPhdr)-sizeof(EtherNetII),0);
-        TCPacket->chksum = checksum((unsigned char*)TCPacket->ip.source,0x08+0x14,2);
-        /*Send the FINACK*/
-        MACWrite(packet,sizeof(TCPhdr));
-        
-        /*Reset Reply Recd flag to indicate that Reply is processed.*/
-        WebClientDataRecd=2;
-    }
-}
-
-/*******************************************************************************
-* Function Name: ackTcp
-********************************************************************************
-* Summary:
-*   Creates an TCP ACK packet from a recd TCP packet.This is used to create
-*   all kinds of ACK-s(including SYN-ACK) during an HTTP Transaction.
-*
-* Parameters:
-*   tcp - pointer to the start of a TCP packet which is to be ACK'd.
-*   len - length of the TCP packet which is to be ACK'd.
-*   syn_val - If this is 1,then the ack will be a SYN ACK with MSS=1408.
-*             If this is 0,then its a bare-bones ACK.
-*             
-* Returns:
-*   The length of ACK packet made.
-*******************************************************************************/
-unsigned int ackTcp(TCPhdr* tcp, unsigned int len,bit syn_val){
-    char ack[4];
-    unsigned int destPort;
-    unsigned char dlength=0;
-    unsigned char* datptr;
-  
-    /*Zero out the checksum fields*/
-    tcp->chksum = 0x0;
-    tcp->ip.chksum = 0x0;
-  
-    /*Swap the MACs in the ETH header*/
-    memcpy( tcp->ip.eth.DestAddrs, tcp->ip.eth.SrcAddrs, 6 );
-    memcpy( tcp->ip.eth.SrcAddrs, deviceMAC, 6 );
-  
-    /*Swap the IP Addresses in the IP header*/
-    memcpy( tcp->ip.dest, tcp->ip.source, 4 );
-    memcpy( tcp->ip.source, deviceIP, 4 );
-  
-    /*Swap the Ports in the TCP header*/
-    destPort = tcp->destPort;
-    tcp->destPort = tcp->sourcePort;
-    tcp->sourcePort = destPort;
-    /*Swap the ACK and Sequence numbers*/
-    memcpy( ack, tcp->ackNo, sizeof(ack) );
-    memcpy( tcp->ackNo, tcp->seqNo, sizeof(ack) );
-    memcpy( tcp->seqNo, ack, sizeof(ack) );
-  
-    /*Increment Ack Number if its a SYN,or FIN(ACK) packet,
-    If not,then fill it accordingly.*/
-    if( (tcp->SYN==1) || (tcp->FIN==1)){
-        /*Increment Ack Number if its a SYN,or FINACK packet.*/
-        add32( tcp->ackNo, 1 );
-    }else{
-        add32( tcp->ackNo, len - sizeof(TCPhdr) );
-    }
-
-    /*If its supposed to be a SYNACK packet,then add MSS option.
-    MSS= Maximum segment size
-    If not,then set the appropriate value in the length field of TCP
-    and dont add any options.*/
-    if(syn_val){
-        tcp->SYN = syn_val;
-        datptr = (unsigned char*)(tcp) + 0x34 ;
-        *datptr++=0x02;
-        *datptr++=0x04;
-        *datptr++=HI8(1408);
-        *datptr++=LO8(1408);
-        tcp->hdrLen = 0x06;//6 because its length is 24bytes.Multiples of 4bytes.
-        dlength+=4;//MSS option is 4bytes,so length of (data)options=4. 
-    }else{
-        tcp->hdrLen = 0x05;//5 because its length is 20bytes.Multiples of 4bytes.
-    }
-
-    tcp->ACK=1;//Set the ACK flag.
-    tcp->PSH=0;//Clear the PSH flag.
-    tcp->FIN=0;//Clear the FIN flag.
-    tcp->RST=0;//Clear the RST flag.
-    
-    /*Length of the Packet*/
-    len = sizeof(TCPhdr)+dlength;
-    
-    /*IP Length field.*/
-    tcp->ip.len = (len-sizeof(EtherNetII));
-    
-    /*Compute the checksums*/
-    tcp->ip.chksum=checksum((unsigned char*)tcp + sizeof(EtherNetII),sizeof(IPhdr)-sizeof(EtherNetII),0);
-    tcp->chksum = checksum((unsigned char*)tcp->ip.source,0x08+0x14+dlength,2);
-
-    return(MACWrite((unsigned char*)tcp,len));
-}
 
 /* [] END OF FILE */

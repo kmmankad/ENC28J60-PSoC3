@@ -10,25 +10,101 @@
 #include "IPStackMain.h"
 #include <string.h>
 
-
+/*******************************************************************************
+* Function Name: WebClient_ProcessReply
+********************************************************************************
+* Summary:
+*   Process the data sent as a reply from the webserver.
+*   **Add all your reply parsing code in this function.**
+* Parameters:
+*   Rpacket - pointer to a TCP Packet that has the data.
+*              
+* Returns:
+*   customize as required.
+*******************************************************************************/
 unsigned int WebClient_ProcessReply(TCPhdr* Rpacket){
-
-return 1;
+	/*replydatptr points to the start of the Data in the reply
+	Points to H in HTTP 1.1/.... 
+	*/
+	unsigned char* replydatptr=(unsigned char*)Rpacket+sizeof(TCPhdr);;
+    
+	/*Is it an 'HTTP 200 OK' ? */
+	if(strncmp(replydatptr+9,"200",3)==0){
+		/*Its a 200 OK!.Success :-)*/
+		LCD_Position(1,0);
+		LCD_PrintString("200 OK");
+		return TRUE;
+	}
+	
+	return FALSE;
 }
 
-unsigned int WebClient_BrowseURL(unsigned char* query,TCPhdr* Tpacket){
+/*******************************************************************************
+* Function Name: WebClient_Send
+********************************************************************************
+* Summary:
+*   Sends the query stored in the WebClientQuery global variable.
+*	(Actually just commands the SYN Packet to initiate the HTTP Request with the server.)
+*   Ensure that you have stored the appropriate query in,before calling this.
+* Parameters:
+*  none.
+*              
+* Returns:
+*   TRUE(0)- if the SYN for the Query was successfully signalled for a send.
+*   FALSE(1) - if the SYN for the Query was not successful in signalled for a send.
+*******************************************************************************/
+unsigned int WebClient_Send(){
+	
+	/*Check if Link is Up*/
+    if(IsLinkUp()==0){
+        return FALSE;
+    }
+	
+	/*To avoid false re-triggers*/
+	if(!(WebClientStatus==0)){
+		return FALSE;
+	}
+	
+	/*Send a SYN*/
+    WebClientStatus=1;
+	
+	/*Allocate a New Port*/
+	WClientPort++;
+	
+	/*Send the Query*/
+	return TRUE;
+}
+
+/*******************************************************************************
+* Function Name: WebClient_BrowseURL
+********************************************************************************
+* Summary:
+*   Sends the query stored in the WebClientQuery global variable.
+*   Do not call this function in usercode,its part of the state machine in IPStack.C
+*	It is called by the state machine after the SYN-SYNACK-ACK handshake is over.
+* Parameters:
+*  none.
+*              
+* Returns:
+*   TRUE(0)- if the Query was successfully sent.
+*   FALSE(1) - if the Query was not successful in transmission.
+*******************************************************************************/
+unsigned int WebClient_BrowseURL(TCPhdr* Tpacket){
 
     unsigned int datlen;
-    
+	
     /*We have finished the handshake,so lets send the Actual Query*/
     Tpacket->PSH=1;
-    Tpacket->ip.ident=0xABBA;
-    
+	
+	/*Dont Fragment*/
+	Tpacket->ip.flags=0x4000;
+	Tpacket->ip.ttl=128;
+
     /*Length of Query String*/
-    datlen=strlen(query);
+    datlen=strlen(WebClientQuery);
     
     /*Copy in the Query*/
-    memcpy((unsigned char*)Tpacket+sizeof(TCPhdr),query,datlen);
+    memcpy((unsigned char*)Tpacket+sizeof(TCPhdr),WebClientQuery,datlen);
     
     /*Set IP Length field*/
     Tpacket->ip.len=(sizeof(TCPhdr)+datlen)-sizeof(EtherNetII);
@@ -40,15 +116,28 @@ unsigned int WebClient_BrowseURL(unsigned char* query,TCPhdr* Tpacket){
     /*Compute the checksums*/
     Tpacket->ip.chksum=checksum((unsigned char*)Tpacket + sizeof(EtherNetII),sizeof(IPhdr)-sizeof(EtherNetII),0);
     Tpacket->chksum = checksum((unsigned char*)Tpacket->ip.source,0x08+0x14+datlen,2);
-    
-    return(MACWrite((unsigned char*)Tpacket,sizeof(TCPhdr)+datlen));
+	
+	/*Send the Query TCP Packet*/
+	return(MACWrite((unsigned char*)Tpacket,sizeof(TCPhdr)+datlen));
 }
 
-
-unsigned int WebClient_Send(const char* Querydat){
+/*******************************************************************************
+* Function Name: WebClient_SendSYN
+********************************************************************************
+* Summary:
+*   Sends a SYN packet to the server to initiate the 3 way TCP handshake.
+*
+* Parameters:
+*  none.
+*              
+* Returns:
+*   TRUE(0)- if the SYN Packet was successfully sent.
+*   FALSE(1) - if the SYN Packet was not successful in transmission.
+*******************************************************************************/
+unsigned int WebClient_SendSYN(void){
     unsigned char packet[MAXPACKETLEN];
-    static bit FuncCall;
-    
+
+    unsigned char* optptr=packet+sizeof(TCPhdr);
     /*Its a TCP Packet.*/
     TCPhdr* TCPacket = (TCPhdr*)packet;
     
@@ -57,50 +146,42 @@ unsigned int WebClient_Send(const char* Querydat){
         return FALSE;
     }
     
-    /*Till Previous Query wasnt fully processed,
-    dont send another one,if so just return*/
-    if(!((WebClientDataRecd!=2)&&(FuncCall==0))){
-        return FALSE;
-    }
-   
-    /*Take the URL into the Global URL*/
-    if(sizeof(Querydat)<sizeof(WebClientQuery))  {
-        /*We can accomodate it into our global query dat buffer*/
-        memcpy(WebClientQuery,Querydat,sizeof(Querydat));
-    }else{
-        /*Its too big.*/
-        return FALSE;
-    }
-    
-    
     /*We'll send a SYN to initiate the Handshake.*/
     SetupBasicIPPacket( packet, TCPPROTOCOL, serverIP );
-    
+	
+	/*Source Port to be our Client Port*/
     TCPacket->sourcePort=WClientPort;
+	
+	/*Its to be sent to the server at port 80*/
     TCPacket->destPort=80;
-    
-   // TCPacket->seqNo=0x00;
-   // TCPacket->ackNo=0x00;
-    
-    TCPacket->hdrLen = (sizeof(TCPhdr)-sizeof(IPhdr))/4;
+	
+	/*Set Sequence number to be 1*/
+    TCPacket->seqNo[0]=0x01;
+	
+	/*Header length 6(measured in chunks of 4 bytes.) 20 is TCP header length,4 is MSS option*/
+    TCPacket->hdrLen = 0x06;
+	
+	/*Set the SYN Flag*/
     TCPacket->SYN=1;
     
     /*Set Window size*/
-    TCPacket->wndSize = 200;
+    TCPacket->wndSize = 0x320;
     
     /*Set IP Length*/
-    TCPacket->ip.len =sizeof(TCPhdr)-sizeof(EtherNetII);
+    TCPacket->ip.len=44;
+    
+	/*Set Max Segment Size(MSS) Option as 0x200*/
+    *(optptr)++ =0x02;
+    *(optptr)++ =0x04;
+    *(optptr)++ =0x02;
+    *(optptr)++ =0x00;
     
     /*Compute the checksums*/
     TCPacket->ip.chksum=checksum((unsigned char*)TCPacket + sizeof(EtherNetII),sizeof(IPhdr)-sizeof(EtherNetII),0);
-    TCPacket->chksum = checksum((unsigned char*)TCPacket->ip.source,0x08+0x14,2);
-    
+    TCPacket->chksum = checksum((unsigned char*)TCPacket->ip.source,0x08+0x14+4,2);
+
     /*Send the SYN*/
-    MACWrite((unsigned char*)TCPacket,sizeof(TCPhdr));
-    
-    FuncCall=1;
-    
-    return TRUE;
+    return(MACWrite((unsigned char*)TCPacket,sizeof(TCPhdr)+4));
 }
 
 /* [] END OF FILE */

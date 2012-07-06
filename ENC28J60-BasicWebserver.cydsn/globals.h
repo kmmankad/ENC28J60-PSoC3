@@ -37,24 +37,9 @@ extern unsigned int WClientPort;
 /*Source Port for UDP Transmission*/
 extern unsigned int UDPPort;
 
-/*Bit to signify SYN-SYNACK-ACK handshake is over,
-and we(the client) can send our request*/
-extern bit WebClientQueryRTS;
+extern unsigned char WebClientStatus;
 
-/*flag to signify that Reply to our(client) request
-is recd,so we can now process it
-0 - Initial State,no Replies.
-1 - Reply Recd.
-2 - Reply Processed,Connection closed.
-*/
-extern unsigned char WebClientDataRecd;
-
-/*Bit flag to signify that Get Query recd.*/
-extern bit WebServerGETRecd;
-
-extern unsigned char* WebClientQuery[100];
-
-/*Status Codes*/
+extern unsigned char WebClientQuery[250];
 #define TRUE  0
 #define FALSE 1
 

@@ -21,9 +21,9 @@ unsigned int WebServer_ProcessRequest(TCPhdr* TCPPackData){
     
     
     if (strncmp("GET ",(unsigned char*)TCPPackData+sizeof(TCPhdr),4)!=0){
-        // head, post and other methods:
+        //Reply with a 200 OK with queries that arent of type GET.
         //
-        // for possible status codes see:
+        // for possible HTTP Status codes(404,301 etc) see:
         // http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
         datalen=AddWebServerData(TCPPackData,0,"HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n");
     }
@@ -90,7 +90,7 @@ unsigned int AddWebServerData(TCPhdr* TCPPkt,unsigned int pos,const char* str){
 unsigned int ReplyTCP_Webserver(TCPhdr* TCPPkt,unsigned int datlen){
     
     /*Send an ACK for the GET query*/
-    ackTcp(TCPPkt,(TCPPkt->ip.len)+14,0);
+    ackTcp(TCPPkt,(TCPPkt->ip.len)+14,0,0,0,0);
     
     /*Based on that ACK we sent,create the reply to the GET query*/
     /*Set the flags.*/
