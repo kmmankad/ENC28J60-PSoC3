@@ -383,6 +383,10 @@ unsigned int ackTcp(TCPhdr* tcp, unsigned int len,unsigned char syn_val,unsigned
     }else{
         add32( tcp->ackNo, len - sizeof(TCPhdr) );
     }
+	
+	if((tcp->PSH==1)&&(tcp->destPort==WClientPort)){
+		 add32( tcp->ackNo, 1 );
+	}
 
     /*If its supposed to be a SYNACK packet,then add MSS option.
     MSS= Maximum segment size
