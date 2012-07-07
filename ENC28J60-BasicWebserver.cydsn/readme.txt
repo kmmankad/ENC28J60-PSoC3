@@ -13,11 +13,15 @@ WebServer( and WebClient Example):
 
 -----------------------------------------------------------------------
 Current status: 
--Webserver,Webclient,DNS,PING,ARP all work perfectly.
+-Webserver,DNS,PING,ARP all work perfectly.
 -For Webserver Traffic dump(Wireshark 1.6.8) see Traffic Dumps/WebServer_Traffic.txt
 -For WebClient Traffic dump(Wireshark 1.6.8) see Traffic Dumps/WebClient_Traffic.txt
 --WebClient Traffic dump is for the PSoC downloading a webpage hosted on a local WAMP server,
   since I dont know how to sniff on the router.
+
+
+-Note that webclient doesnt seem to work with successive connections.
+--Trying to fix this issue(07-07-12)
 
 This code has been tested with:
   Hardware: CY8CKIT-030 with ENC28J60 module from http://www.embeddedmarket.com/products/ENC28J60-Ethernet-Module/
@@ -33,4 +37,4 @@ http://kmmankad.blogspot.com
 
 This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 Unported License.
 
-Last Updated on 06-July-12.
+Last Updated on 07-July-12.
