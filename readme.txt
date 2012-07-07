@@ -11,6 +11,9 @@ Current status:
 -DNS Done.        |--(ENC28J60-BasicWebserver.cydsn)
 -Webclient done.  |
 
+-Note that webclient doesnt seem to work with successive connections.
+--Trying to fix this issue(07-07-12)
+
 -Examples for UDP and also more complex Webclient,Webserver examples under construction.
 
 
@@ -28,4 +31,4 @@ http://kmmankad.blogspot.com
 
 This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 Unported License.
 
-Last Updated on 06-July-2012.
+Last Updated on 07-July-2012.
