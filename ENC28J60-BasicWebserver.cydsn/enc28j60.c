@@ -134,7 +134,7 @@ void initMAC(unsigned char* deviceMAC){
     See Section 6.6 on Page 40 */
     WritePhyReg(PHCON2, PHCON2_HDLDIS);
     
-    /*Enable the chip for reception of packets*/
+    /*Enable reception of packets*/
     WriteCtrReg(ECON1,  ECON1_RXEN);     
 }
 
@@ -145,7 +145,7 @@ unsigned char MACWrite(unsigned char* packet, unsigned int len){
     /*Configure TX Buffer Pointers*/
     BankSel(0);// select bank 0
     
-    // write ptr to start of Tx packet
+    /*Buffer write ptr to start of Tx packet*/
     WriteCtrReg(ETXSTL,(unsigned char)( TXSTART & 0x00ff));        
     WriteCtrReg(ETXSTH,(unsigned char)((TXSTART & 0xff00)>>8));
     
@@ -418,13 +418,10 @@ static unsigned char WriteCtrReg(unsigned char bytAddress,unsigned char bytData)
     if (bytAddress > 0x1f){
         return FALSE;
     }
-
     bytAddress |= WCR_OP;//Set the Opcode.
     SPI_SEL(TRUE);//Activate CS(Pulled Low.)
-    
     spiTxBuffer(&bytAddress,1);//Send the OpCode and Address.
     spiTxBuffer(&bytData,1);//Send the data payload.
-    
     SPI_SEL(FALSE);//Deactivate CS(Pulled High.)
   
     return TRUE;
