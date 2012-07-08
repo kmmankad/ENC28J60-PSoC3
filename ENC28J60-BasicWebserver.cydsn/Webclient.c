@@ -6,6 +6,9 @@
  Date : 30-06-12
  This code is licensed as CC-BY-SA 3.0
  Description : Webserver client functionality that allows for basic requests/reply processing.
+
+ Thanks to duncanspumpkin for pointing out the error that was failing successive client queries.
+
 */
 #include "IPStackMain.h"
 #include <string.h>
@@ -176,6 +179,11 @@ unsigned int WebClient_SendSYN(void){
     *(optptr)++ =0x02;
     *(optptr)++ =0x00;
     
+	/*Zero out the checksums*/
+    TCPacket->ip.chksum=0x00;
+    TCPacket->chksum=0x00;
+	/*Thanks to duncanspumpkin for pointing out the absence of these valuable lines*/
+	
     /*Compute the checksums*/
     TCPacket->ip.chksum=checksum((unsigned char*)TCPacket + sizeof(EtherNetII),sizeof(IPhdr)-sizeof(EtherNetII),0);
     TCPacket->chksum = checksum((unsigned char*)TCPacket->ip.source,0x08+0x14+4,2);
