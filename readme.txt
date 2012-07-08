@@ -10,11 +10,16 @@ Current status:
 -WebServer done.  |
 -DNS Done.        |--(ENC28J60-BasicWebserver.cydsn)
 -Webclient done.  |
+-COSM Example(Upload Data) Added.(ENC28J60-COSMExample.cydsn)
+
 
 --Update 8 July 2012 - WebClient works fine now.Thanks to duncanspumpkin(http://mostlyprog.wordpress.com) who pointed out that I hadnt zero-ed out the checksum(before calculation) in the SYN sending function.
 
--Examples for UDP and also more complex Webclient,Webserver examples under construction.
-
+-Examples to come:
+1.WebClient - Twitter
+2.WebClient - COSM(Read Data)
+3.Generic UDP RX/TX.
+4.NTP
 
 This code has been tested with:
   Hardware: CY8CKIT-030 with ENC28J60 module from http://www.embeddedmarket.com/products/ENC28J60-Ethernet-Module/
