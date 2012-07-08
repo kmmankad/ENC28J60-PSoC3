@@ -179,11 +179,13 @@ unsigned int WebClient_SendSYN(void){
     *(optptr)++ =0x02;
     *(optptr)++ =0x00;
     
+
 	/*Zero out the checksums*/
     TCPacket->ip.chksum=0x00;
     TCPacket->chksum=0x00;
 	/*Thanks to duncanspumpkin for pointing out the absence of these valuable lines*/
-	
+
+
     /*Compute the checksums*/
     TCPacket->ip.chksum=checksum((unsigned char*)TCPacket + sizeof(EtherNetII),sizeof(IPhdr)-sizeof(EtherNetII),0);
     TCPacket->chksum = checksum((unsigned char*)TCPacket->ip.source,0x08+0x14+4,2);
