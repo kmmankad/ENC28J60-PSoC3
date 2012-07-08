@@ -11,8 +11,7 @@ Current status:
 -DNS Done.        |--(ENC28J60-BasicWebserver.cydsn)
 -Webclient done.  |
 
--Note that webclient doesnt seem to work with successive connections.
---Trying to fix this issue(07-07-12)
+--Update 8 July 2012 - WebClient works fine now.Thanks to duncanspumpkin(http://mostlyprog.wordpress.com) who pointed out that I hadnt zero-ed out the checksum(before calculation) in the SYN sending function.
 
 -Examples for UDP and also more complex Webclient,Webserver examples under construction.
 
