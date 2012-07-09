@@ -81,8 +81,14 @@ void main( void ){
 			/*DNS Lookup*/
 			if(DNSWorked==0){
 				DNSWorked=~DNSLookup("api.cosm.com");
-				LCD_PrintString("DNS Worked.");
-				LCD_Position(1,0);
+				if(DNSWorked==1){
+					LCD_PrintString("DNS Worked.");
+					LCD_Position(1,0);
+				}else{
+					LCD_PrintString("DNS Failed.");
+					LCD_Position(1,0);
+					LCD_PrintString("Retrying in 30s");
+				}
 			}
 			/*Format and send the PUT Request to api.cosm.com*/
 			if(DNSWorked==1){
