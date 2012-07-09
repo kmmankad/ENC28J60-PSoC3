@@ -14,6 +14,8 @@
 			   For each successful reply from the COSM server,a '.' will be printed on the character LCD,
 			   and an LED connected to P6_2(sourcing) will blink.
 			   
+			   Feed link - https://cosm.com/feeds/65875
+			   
  Note : You may change Router IP,DNS Server IP,Webserver port and Webclient port in "globals.c".
  		The reply processing function is in "Webclient.c",named WebClient_ProcessReply.
 		The webpage creating function is in "Webserver.c",named WebServer_ProcessRequest
