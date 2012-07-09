@@ -33,9 +33,9 @@ unsigned int DNSLookup( const char* url ){
     unsigned int len,noChars = 0;
     const char* c;
     unsigned char* dnsq;
-    unsigned int timeout=3000;
+    unsigned int timeout=9000;
     
-    /*Structure the variable 'packet' as a DNS header*/
+	/*Structure the variable 'packet' as a DNS header*/
     DNShdr* dns = (DNShdr*)packet;
     
     /*Setup a basic IP packet,of type UDP,since DNS uses UDP
@@ -101,7 +101,9 @@ unsigned int DNSLookup( const char* url ){
       
     while(timeout--){
         /*Wait for a packet of type UDP*/
-        GetPacket(UDPPROTOCOL, packet);
+        if(GetPacket(UDPPROTOCOL, packet)!=1){
+			continue;
+		}
         /*We got a UDP packet*/
         /*Check if that packet is sent from port 53,
           i.e. its a DNS reply. */
