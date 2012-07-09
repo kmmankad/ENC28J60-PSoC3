@@ -141,7 +141,12 @@ void initMAC(unsigned char* deviceMAC){
 unsigned char MACWrite(unsigned char* packet, unsigned int len){
 
     unsigned char  bytControl=0x00;
-  
+  	
+	/*Check if Link is Up*/
+    if(IsLinkUp()==0){
+        return FALSE;
+    }
+	
     /*Configure TX Buffer Pointers*/
     BankSel(0);// select bank 0
     
@@ -220,6 +225,11 @@ unsigned int MACRead(unsigned char* packet, unsigned int maxLen){
 	volatile unsigned int pckLen;
 	static unsigned int nextpckptr = RXSTART;
     
+	/*Check if Link is Up*/
+    if(IsLinkUp()==0){
+        return FALSE;
+    }
+	
     /*Read EPKTCNT to see if we have any packets in.*/
     BankSel(1);//Select Bank 1.
     if(ReadETHReg(EPKTCNT) == 0){
