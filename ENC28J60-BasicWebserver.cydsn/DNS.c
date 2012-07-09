@@ -133,7 +133,11 @@ unsigned int DNSLookup( const char* url ){
                     if (dnsq[1] == 1 && dnsq[9] == 4) { /*Check if type "A" and IPv4*/
                         /*Aha! We have our IP!.Lets save it to the global variable serverIP*/
                         memcpy( serverIP, dnsq+10, sizeof(serverIP));
-                        return(TRUE);
+                        if(serverIP[0]==0){
+							return FALSE;
+						} else {
+                        	return TRUE;
+						}
                         break;
                     }
                     /*Advance pointer to browse the remaining records,since we
