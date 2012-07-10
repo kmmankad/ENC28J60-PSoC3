@@ -1,0 +1,84 @@
+No.     Time        Source                Destination           Protocol Length Info
+      1 0.000000    216.52.233.121        216.52.233.121        TCP      60     19991 > http [SYN] Seq=0 Win=800 Len=0 MSS=512
+
+Frame 1: 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00), Dst: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44)
+Internet Protocol Version 4, Src: 192.168.1.153 (192.168.1.153), Dst: 216.52.233.121 (216.52.233.121)
+Transmission Control Protocol, Src Port: 19991 (19991), Dst Port: http (80), Seq: 0, Len: 0
+
+No.     Time        Source                Destination           Protocol Length Info
+      2 0.320053    192.168.1.153         192.168.1.153         TCP      60     http > 19991 [SYN, ACK] Seq=0 Ack=1 Win=5840 Len=0 MSS=1360
+
+Frame 2: 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44), Dst: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00)
+Internet Protocol Version 4, Src: 216.52.233.121 (216.52.233.121), Dst: 192.168.1.153 (192.168.1.153)
+Transmission Control Protocol, Src Port: http (80), Dst Port: 19991 (19991), Seq: 0, Ack: 1, Len: 0
+
+No.     Time        Source                Destination           Protocol Length Info
+      3 0.320055    216.52.233.121        216.52.233.121        TCP      60     19991 > http [ACK] Seq=1 Ack=1 Win=5840 Len=0
+
+Frame 3: 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00), Dst: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44)
+Internet Protocol Version 4, Src: 192.168.1.153 (192.168.1.153), Dst: 216.52.233.121 (216.52.233.121)
+Transmission Control Protocol, Src Port: 19991 (19991), Dst Port: http (80), Seq: 1, Ack: 1, Len: 0
+
+No.     Time        Source                Destination           Protocol Length Info
+      4 0.320055    216.52.233.121        216.52.233.121        HTTP     268    PUT /v2/feeds/65875.csv HTTP/1.1  (text/csv)Continuation or non-HTTP traffic
+
+Frame 4: 268 bytes on wire (2144 bits), 268 bytes captured (2144 bits)
+Ethernet II, Src: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00), Dst: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44)
+Internet Protocol Version 4, Src: 192.168.1.153 (192.168.1.153), Dst: 216.52.233.121 (216.52.233.121)
+Transmission Control Protocol, Src Port: 19991 (19991), Dst Port: http (80), Seq: 1, Ack: 1, Len: 213
+Hypertext Transfer Protocol
+Media Type
+Hypertext Transfer Protocol
+
+No.     Time        Source                Destination           Protocol Length Info
+      5 0.631407    192.168.1.153         192.168.1.153         TCP      60     http > 19991 [ACK] Seq=1 Ack=214 Win=6432 Len=0
+
+Frame 5: 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44), Dst: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00)
+Internet Protocol Version 4, Src: 216.52.233.121 (216.52.233.121), Dst: 192.168.1.153 (192.168.1.153)
+Transmission Control Protocol, Src Port: http (80), Dst Port: 19991 (19991), Seq: 1, Ack: 214, Len: 0
+
+No.     Time        Source                Destination           Protocol Length Info
+      6 0.717831    192.168.1.153         192.168.1.153         HTTP     643    HTTP/1.1 200 OK  (text/plain)
+
+Frame 6: 643 bytes on wire (5144 bits), 643 bytes captured (5144 bits)
+Ethernet II, Src: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44), Dst: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00)
+Internet Protocol Version 4, Src: 216.52.233.121 (216.52.233.121), Dst: 192.168.1.153 (192.168.1.153)
+Transmission Control Protocol, Src Port: http (80), Dst Port: 19991 (19991), Seq: 1, Ack: 214, Len: 589
+Hypertext Transfer Protocol
+Line-based text data: text/plain
+
+No.     Time        Source                Destination           Protocol Length Info
+      7 0.718009    192.168.1.153         192.168.1.153         TCP      60     http > 19991 [FIN, ACK] Seq=590 Ack=214 Win=6432 Len=0
+
+Frame 7: 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44), Dst: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00)
+Internet Protocol Version 4, Src: 216.52.233.121 (216.52.233.121), Dst: 192.168.1.153 (192.168.1.153)
+Transmission Control Protocol, Src Port: http (80), Dst Port: 19991 (19991), Seq: 590, Ack: 214, Len: 0
+
+No.     Time        Source                Destination           Protocol Length Info
+      8 0.724321    216.52.233.121        216.52.233.121        TCP      60     19991 > http [ACK] Seq=214 Ack=590 Win=6432 Len=0
+
+Frame 8: 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00), Dst: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44)
+Internet Protocol Version 4, Src: 192.168.1.153 (192.168.1.153), Dst: 216.52.233.121 (216.52.233.121)
+Transmission Control Protocol, Src Port: 19991 (19991), Dst Port: http (80), Seq: 214, Ack: 590, Len: 0
+
+No.     Time        Source                Destination           Protocol Length Info
+      9 0.727303    216.52.233.121        216.52.233.121        TCP      60     19991 > http [FIN, ACK] Seq=214 Ack=591 Win=6432 Len=0
+
+Frame 9: 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00), Dst: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44)
+Internet Protocol Version 4, Src: 192.168.1.153 (192.168.1.153), Dst: 216.52.233.121 (216.52.233.121)
+Transmission Control Protocol, Src Port: 19991 (19991), Dst Port: http (80), Seq: 214, Ack: 591, Len: 0
+
+No.     Time        Source                Destination           Protocol Length Info
+     10 1.036627    192.168.1.153         192.168.1.153         TCP      60     http > 19991 [ACK] Seq=591 Ack=215 Win=6432 Len=0
+
+Frame 10: 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: HuaweiTe_31:b1:44 (00:e0:fc:31:b1:44), Dst: Intel-Hf_14:c8:00 (00:a0:c9:14:c8:00)
+Internet Protocol Version 4, Src: 216.52.233.121 (216.52.233.121), Dst: 192.168.1.153 (192.168.1.153)
+Transmission Control Protocol, Src Port: http (80), Dst Port: 19991 (19991), Seq: 591, Ack: 215, Len: 0
