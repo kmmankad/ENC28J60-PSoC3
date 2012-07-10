@@ -167,8 +167,11 @@ void SetupBasicIPPacket( unsigned char* packet, unsigned char proto, unsigned ch
     ip->diffsf = 0;
     ip->ident = 2;/*Random*/ 
 	ip->flags = 0x4000;
+	  	//ip->fragmentOffset1 = 0x00;  	
+  	//ip->fragmentOffset2 = 0x00;
 
-	ip->ttl = 128;
+
+    ip->ttl = 128;
     
     /*Set the type of IP Protocol*/
     ip->protocol = proto;
@@ -263,18 +266,11 @@ unsigned int GetPacket( int proto, unsigned char* packet ){
 					WebClient_BrowseURL(Pack);
 					WebClientStatus=3;
 				}else{
-					if(WebClientStatus==2){
-					/*SYN Sent*/
-						/*Send a RST*/
-						ackTcp(Pack,(Pack->ip.len)+14,0,0,1,0);
-						WebClientStatus=1;/*Retry*/
-						return 1;
-					}
 					if( (WebClientStatus==3)&&((len-sizeof(TCPhdr))>12)) {
 						/*Process Data*/
 						WebClient_ProcessReply(Pack);
 					}
-					if((Pack->FIN==1)) {//&&(WebClientStatus!=0
+					if(Pack->FIN==1){
 						/*Reply with a FIN-ACK*/
 						ackTcp(Pack,(Pack->ip.len)+14,0,1,0,0);
 						WebClientStatus=0;
@@ -286,14 +282,22 @@ unsigned int GetPacket( int proto, unsigned char* packet ){
 			}
 			/*<=============WEBCLIENT HANDLER END====================>*/            
 			}
-        
-            /*Packet type check,as passed via proto*/
+			
+			/*Packet type check,as passed via proto*/
             if( ip->protocol == proto ){
                 /*Yes,there is a packet of your requested protocol type.*/
                 return 1;
             }
         
-        
+        	/*<------------UDP HANDLER START--------------------------->*/
+			if( ip->protocol == UDPPROTOCOL){
+				UDPPacket* UDPPtr = (UDPPacket*)packet;
+				UDP_ProcessIncoming(UDPPtr);
+				return 1;
+			}
+        	/*<------------UDP HANDLER END------------------------------>*/
+			
+   
     }
     
     return 0;
@@ -411,9 +415,9 @@ unsigned int ackTcp(TCPhdr* tcp, unsigned int len,unsigned char syn_val,unsigned
     }
 
     tcp->ACK=1;//Set the ACK flag.
-    tcp->PSH=psh_val;//Set the PSH flag according to the argument.
-    tcp->FIN=fin_val;//Set the FIN flag according to the argument.
-    tcp->RST=rst_val;//Set the RST flag according to the argument.
+    tcp->PSH=psh_val;//Clear the PSH flag.
+    tcp->FIN=fin_val;//Clear the FIN flag.
+    tcp->RST=rst_val;//Clear the RST flag.
     
     /*Length of the Packet*/
     len = sizeof(TCPhdr)+dlength;
