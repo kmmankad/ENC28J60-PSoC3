@@ -282,14 +282,22 @@ unsigned int GetPacket( int proto, unsigned char* packet ){
 			}
 			/*<=============WEBCLIENT HANDLER END====================>*/            
 			}
-        
-            /*Packet type check,as passed via proto*/
+			
+			/*Packet type check,as passed via proto*/
             if( ip->protocol == proto ){
                 /*Yes,there is a packet of your requested protocol type.*/
                 return 1;
             }
         
-        
+        	/*<------------UDP HANDLER START--------------------------->*/
+			if( ip->protocol == UDPPROTOCOL){
+				UDPPacket* UDPPtr = (UDPPacket*)packet;
+				UDP_ProcessIncoming(UDPPtr);
+				return 1;
+			}
+        	/*<------------UDP HANDLER END------------------------------>*/
+			
+   
     }
     
     return 0;
