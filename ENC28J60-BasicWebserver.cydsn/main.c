@@ -11,6 +11,8 @@
 			   This will send a GET Query to a webserver and download a webpage,
 			   displaying "200 OK" on the LCD when it gets a successful reply from the server.
 			   
+			    See the screenshot of the websever in action on the second page of the Top Design canvas.
+			   
  Note : You may change Router IP,DNS Server IP,Webserver port and Webclient port in "globals.c".
  		The reply processing function is in "Webclient.c",named WebClient_ProcessReply.
 		
