@@ -47,6 +47,21 @@ unsigned int UDPReply(UDPPacket* udppkt,unsigned char* datapayload,unsigned int 
 *******************************************************************************/
 unsigned int UDPSend(unsigned char* targetIP,unsigned int targetPort,unsigned char* datapayload,unsigned int payloadlen);
 
+
+/*******************************************************************************
+* Function Name: UDP_ProcessIncoming
+********************************************************************************
+* Summary:
+*   This will be called in GetPacket,when a UDP packet is recd.You may process the data
+*   carried by that incoming UDP packet in this function,and then call UDPReply to respond.
+*
+* Parameters:
+*   incomingpacket - packet whose data payload is to be processed and replied to.
+* Returns:
+*   Nothing.
+*******************************************************************************/
+void UDP_ProcessIncoming(UDPPacket* incomingpacket);
+
 #endif
 
 /* [] END OF FILE */
