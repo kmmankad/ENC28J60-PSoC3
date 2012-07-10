@@ -274,7 +274,7 @@ unsigned int GetPacket( int proto, unsigned char* packet ){
 						/*Reply with a FIN-ACK*/
 						ackTcp(Pack,(Pack->ip.len)+14,0,1,0,0);
 						WebClientStatus=0;
-					}else if( ((len-sizeof(TCPhdr))>0 )&&(WebClientStatus!=0)) {
+					}else if( ((Pack->ip.len-0x0028)>0 )&&(WebClientStatus!=0)) {
 						/*Just ACK stuff that comes in*/
 						ackTcp(Pack,(Pack->ip.len)+14,0,0,0,0);
 					}
