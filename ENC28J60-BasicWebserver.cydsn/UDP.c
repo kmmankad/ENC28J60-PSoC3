@@ -112,4 +112,27 @@ unsigned int UDPSend(unsigned char* targetIP,unsigned int targetPort,unsigned ch
     return(MACWrite((unsigned char*)&udppkt, sizeof(UDPhdr)+payloadlen));
 }
 
+/*******************************************************************************
+* Function Name: UDP_ProcessIncoming
+********************************************************************************
+* Summary:
+*   This will be called in GetPacket,when a UDP packet is recd.You may process the data
+*   carried by that incoming UDP packet in this function,and then call UDPReply to respond.
+*
+* Parameters:
+*   incomingpacket - packet whose data payload is to be processed and replied to.
+* Returns:
+*   Nothing.
+*******************************************************************************/
+void UDP_ProcessIncoming(UDPPacket* incomingpacket){
+	unsigned char* datapointer=(unsigned char*)incomingpacket+sizeof(UDPhdr);
+
+	if(strncmp(datapointer,"Invoke.",sizeof("Invoke."))==0){
+		UDPReply(incomingpacket,"Hello World",sizeof("Hello World"));
+	}else{
+		UDPReply(incomingpacket,"Access Denied.",sizeof("Access Denied."));
+	}
+
+}
+
 /* [] END OF FILE */
