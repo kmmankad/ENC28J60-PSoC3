@@ -15,9 +15,10 @@ Current status:
 
 --Update 8 July 2012 - WebClient works fine now.Thanks to duncanspumpkin(http://mostlyprog.wordpress.com) who pointed out that I hadnt zero-ed out the checksum(before calculation) in the SYN sending function.
 
--Examples to come:
-1.WebClient - Twitter
-2.NTP
+Todo:
+1.Watchdog Routine.
+2.NTP(?)
+3.WOL(?)
 
 This code has been tested with:
   Hardware: CY8CKIT-030 with ENC28J60 module from http://www.embeddedmarket.com/products/ENC28J60-Ethernet-Module/
