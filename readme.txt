@@ -1,7 +1,7 @@
 ENC28J60 with the PSoC3
 ----------------------
 
-This project aims to create an Internet connected PSoC3 based device.
+This project is basically an open source TCP/IP network stack,based around the ENC28J60 and a PSoC3 chip controlling it.
 
 Current status: 
 -ENC28J60 Hardware Test Code Done.(ENC28J60-HWTest.cydsn)
