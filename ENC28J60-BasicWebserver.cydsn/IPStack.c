@@ -402,7 +402,7 @@ unsigned int ackTcp(TCPhdr* tcp, unsigned int len,unsigned char syn_val,unsigned
     and dont add any options.*/
     if(syn_val){
         tcp->SYN = syn_val;
-        datptr = (unsigned char*)(tcp) + 0x34 ;
+        datptr = (unsigned char*)(tcp) + sizeof(TCPhdr);
         *datptr++=0x02;
         *datptr++=0x04;
         *datptr++=HI8(300);
